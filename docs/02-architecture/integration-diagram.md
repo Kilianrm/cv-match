@@ -14,9 +14,9 @@ flowchart TB
   API -. map_sub_to_user_id .-> RDS
   API --> RDS[(PostgreSQL)]
 
-  API -. parse_cv_requested\n{user_id,cv_id,trace_id} .-> QP[(Parser Owned Queue)]
-  EB -. scrape_jobs_requested .-> QS[(SQS Scraper Queue)]
-  API -. match_jobs_requested\n{scope=user,user_id,cv_id} .-> QM[(SQS Matcher Queue)]
+  API -. parse_cv_requested\n{user_id, cv_id, trace_id,trigger_type=manual} .-> QP[(CV Parser Owned Queue)]
+  EB -. scrape_jobs_requested\n{source,trace_id,trigger_type=scheduled} .-> QS[(Job Scraper Owned Queue)]
+  API -. match_jobs_requested\n{scope=user,user_id,cv_id,trigger_type=manual} .-> QM[(SQS Matcher Queue)]
 
   QP --> PARSER[CV Parser Service]
   QS --> SCRAPER[Job Scraper Service]
@@ -24,13 +24,13 @@ flowchart TB
 
   PARSER -. get_cv\n{user_id,cv_id}.-> S3
   PARSER -. upsert_parsed_cv\n{cv/user_id/cv_id} .-> RDS
-  PARSER -. match_jobs_requested\n{scope=user,user_id,cv_id} .-> QM
-  SCRAPER --> RDS
-  SCRAPER -. match_jobs_requested\n(scope=system) .-> QM
+  PARSER -. match_jobs_requested\n{scope=user,user_id,cv_id,trigger_type = upload} .-> QM
+  SCRAPER -. upsert_job_offers.-> RDS
+  EB -. match_jobs_requested\n(scope=system,trigger_type = scheduled) .-> QM
   MATCHER -. store matches .-> RDS
-  MATCHER -. new_matches_available\n{user_id,match_id} .-> NQ[(Notification Queue)]
+MATCHER -. new_matches_available\n{user_id,match_id,notification_eligible=true} .-> NQ[Notification Queue]
 
-  SCRAPER --> JOBS[External Job Platforms]
+  SCRAPER -. scrap_jobs.-> JOBS[External Job Platforms: LinkedIn, Indeed, etc...]
 
   %% Notification is sent only when matcher publishes new_matches_available
   NQ --> NOTIFICATION[Notification Service]

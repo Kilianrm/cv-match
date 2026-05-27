@@ -1,7 +1,5 @@
 # Project Decisions Worksheet
 
-Use this document to capture your decisions about CV Match. This is YOUR planning space?fill in answers as you decide, and feel free to change them as you learn.
-
 ---
 
 ## Section 1: Problem & Users
@@ -11,18 +9,16 @@ Use this document to capture your decisions about CV Match. This is YOUR plannin
 
 ---
 
-**Who is your target user? (Describe in 2-3 sentences)**
+**Who is your target user?**
 > My target users are active job seekers who want to reduce the time and effort required to find relevant opportunities. The primary segment includes early- to mid-career professionals in digital and technology-related roles who apply across multiple platforms and face repetitive workflows. Over time, the platform can expand to support job seekers from other industries with similar pain points.
 
 ---
 
 **What is your unique value vs existing services (LinkedIn, Indeed)?**
-> CV Math is focused on speed, simplicity and immediate value: users upload their CV once and start receiving relevant opportunities without long setup flows. Unlike generic job boards, the platform combines personalized daily recommendations with AI-based CV optimization for each selected job. The core differentiator is reducing frictiond and helping users apply faster with higher-quality,role-specific CVs.
+> CV Math is focused on speed, simplicity and immediate value: users upload their CV once and start receiving relevant opportunities without long setup flows. Unlike generic job boards, the platform combines personalized daily recommendations with AI-based CV optimization for each selected job. The core differentiator is reducing friction and helping users apply faster with higher-quality,role-specific CVs.
 ---
 
 ## Section 2: Core Features (MVP Only)
-
-List features you MUST have for MVP (be ruthless?only core value):
 
 - Feature 1: User registration and profile creation (auto-extracted from PDF)
 - Feature 2: Job aggregation from selected sources (scrape and normalize job offers)
@@ -38,8 +34,6 @@ List features you MUST have for MVP (be ruthless?only core value):
 ---
 
 ## Section 3: Business Data Flows
-
-**How does a user get value? (Step-by-step)**
 
 1. User: Signs up with email and password
 2. System: Create user account and authentication token
@@ -111,9 +105,8 @@ We are using a microservices approach because the core workflows in CV Math are 
 
 **How should services talk to each other?**
 
-Choose for each interaction:
 
-- [ ] **Async (Event Queue)**: Service A sends a message, Service B picks it up later
+- **Async (Event Queue)**: Service A sends a message, Service B picks it up later
   - Tools: SQS, RabbitMQ, Kafka
   - Good for: Non-urgent work (parsing, scraping, email)
   - Trade-off: Delayed, but decoupled
@@ -122,11 +115,11 @@ Choose for each interaction:
 
 | Interaction | Async or Sync? | Why? |
 |-------------|----------------|------|
-| API ? CV Parser | Async | CV parsing is background workd and may take time; async keeps API fast and resilient |
-| API ? Scraper | Async | Scraping is long-running and extrenal-source dependent; async prevents request blocking |
-| API ? Matcher | Async | Matching can be compute-heavy and should run as a queued job for scalability. |
-| API ? Notification | Async | Notifications are non-blocking and scheduled; async supports retries and failure isolation. |
-| API ? AI CV Optimization | Async (default) / Sync (optional preview) | Full optimization can be slow, so async is safer; sync is only for very fast preview responses. |
+| API CV Parser | Async | CV parsing is background work and may take time; async keeps API fast and resilient |
+| API Scraper | Async | Scraping is long-running and extrenal-source dependent; async prevents request blocking |
+| API Matcher | Async | Matching can be compute-heavy and should run as a queued job for scalability. |
+| API Notification | Async | Notifications are non-blocking and scheduled; async supports retries and failure isolation. |
+| API AI CV Optimization | Async (default) / Sync (optional preview) | Full optimization can be slow, so async is safer; sync is only for very fast preview responses. |
 
 ---
 
@@ -134,15 +127,13 @@ Choose for each interaction:
 
 **Where do these services run?**
 
-Options:
 - [x] **ECS Fargate**: Containers, AWS managed (recommended for this project)
 - [ ] **Kubernetes (EKS)**: More control, more complexity
 - [ ] **Lambda**: Serverless, smaller services only
 - [ ] **Mix**: Different services in different places
 
-**Your choice**: ECS on Fargate
 **Why?**
-I chose ECS on Fargate because it provides a managed way to run containerized microservices on AWS while reducin infrastrucure management overhead.
+I choose ECS on Fargate because it provides a managed way to run containerized microservices on AWS while reducing infrastrucure management overhead.
 
 
 ---
@@ -151,12 +142,11 @@ I chose ECS on Fargate because it provides a managed way to run containerized mi
 
 **How do you want to define and deploy your infrastructure?**
 
-- [x] **AWS CDK + TypeScript** (Recommended, you chose this)
+- [x] **AWS CDK + TypeScript**
 - [ ] **Terraform**
 - [ ] **Pulumi**
 - [ ] **CloudFormation**
 
-**Your choice**: AWS CDK + TypeScript (confirmed earlier)
 
 **Why?**
 I chose AWS CDK with TypeScript because it provides a programmatic and strongly typed way to define infraestructure on AWS. This approach fits well with the project's architecture, improves maintanibility, and allows me to version, reuse, and automate infraestructure changes as part of the application lifecycle.
@@ -203,14 +193,6 @@ Fill in with your choices: "CloudWatch", "Prometheus", "DataDog", "yes", "no", e
 2. ________________
 3. ________________
 
-I'll address these in the next phase.
 
 ---
 
-## Next Steps
-
-Once you fill this out:
-1. Share your answers
-2. I'll create a **Service Definition Template** for each microservice
-3. We'll design each service's API, database schema, and responsibilities
-4. Then we'll create the CDK structure step-by-step
