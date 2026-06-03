@@ -103,8 +103,8 @@ graph TB
 Each service is a Docker container defined in ECR (Elastic Container Registry).
 
 ### Database: Aurora PostgreSQL
-- **Engine**: PostgreSQL 14+ compatible
-- **Why Aurora**: I considered standard RDS PostgreSQL, but I chose Aurora PostgreSQL because it gives a stronger AWS-native story, better scalability, and higher availability while keeping PostgreSQL compatibility
+- **Engine**:ard RDS PostgreSQL, but I chose Aurora PostgreSQL because it gives a stronger AWS-native story, better scalability, and higher avai PostgreSQL 14+ compatible
+- **Why Aurora**: I considered standlability while keeping PostgreSQL compatibility
 - **Multi-AZ**: Automatic failover and backups
 - **Subnet Group**: Private subnets only (no public IP)
 - **Security Group**: Ingress from Fargate tasks only
@@ -130,11 +130,8 @@ Each service is a Docker container defined in ECR (Elastic Container Registry).
     - Triggers scheduled system-scope matching jobs (for example, with an offset after scraping)
 
 ### Auth: Cognito
-- **User Pool**: Managed user identities and credentials, with optional MFA for stronger account security
-- **App Client**: OAuth 2.0 / OIDC integration used by the frontend to authenticate users and obtain tokens
-- **Token Validation**: API service validates Cognito JWTs on protected endpoints before processing requests
-- **Custom Domain**: `auth.cv-match.com` optional, improves user experience and branded auth flows
-- **User Provisioning**: User profile in Aurora can be created via Post-Confirmation trigger or lazily on first authenticated API call
+
+Detailed authentication and authorization flows are documented in [docs/02-architecture/authentication.md](authentication.md).
 
 ### Secrets: Secrets Manager
 - **Secret Scope**: Stores sensitive runtime configuration only (database credentials, third-party API keys, and AI provider credentials)
@@ -144,13 +141,10 @@ Each service is a Docker container defined in ECR (Elastic Container Registry).
 - **Auditability**: Access to secrets is logged with CloudTrail and monitored for unusual read patterns
 
 ### Observability
-- **Logs**: Structured application logs are centralized in Grafana Loki with service, environment, trace_id, and job_id labels
-- **Metrics**: Prometheus collects service and queue metrics (latency, throughput, error rate, queue depth, and worker processing time)
-- **Tracing**: OpenTelemetry instrumentation propagates trace context across API, SQS, and workers, with traces stored in Tempo
-- **AWS Signals**: CloudWatch remains enabled for AWS infrastructure signals (ECS task health, SQS age of oldest message, RDS CPU/storage, ALB 5xx)
-- **Dashboards**: Grafana dashboards combine Loki, Prometheus, and Tempo for cross-service triage
-- **Alerting**: Grafana Alerting and CloudWatch Alarms cover API error rate/latency, parser and scraper failures, matcher backlog growth, notification send failures, DLQ spikes, and RDS saturation
-- **Correlation Standard**: All async messages include trace_id and trigger metadata to preserve end-to-end observability in event-driven flows
+- Observability standards, dashboards, alert rules, and operational monitoring are documented in [docs/02-architecture/observability.md](observability.md).
+
+### Deployment Operations
+- Deployment environments, release flow, CI/CD policy, and rollback strategy are documented in [docs/02-architecture/deployment.md](deployment.md).
 
 ## High-Level Data Flow
 
@@ -193,27 +187,7 @@ Each service is a Docker container defined in ECR (Elastic Container Registry).
 
 ## Security Model
 
-### Network Isolation
-- VPC with public and private subnets (multi-AZ)
-- Fargate tasks in private subnets (no internet)
-- NAT Gateway for outbound (scraping, SES)
-- Security groups enforce task-to-task communication
-
-### Identity & Access
-- IAM role per Fargate service (least privilege)
-- API role: Read/write RDS, read/write S3, SQS send/receive, Secrets read
-- Worker role: Read/write RDS, read S3, SQS receive, SES send
-
-### Data Protection
-- RDS encryption at rest (KMS)
-- S3 encryption at rest (default AES-256)
-- Cognito password hashing (bcrypt-like)
-- TLS 1.2+ for all traffic
-
-### Compliance
-- User deletion flow: soft-delete CV and all related matches
-- Audit log: all CV uploads/optimizations logged with timestamp
-- No persistent logs of raw CV content
+Detailed controls, threat coverage, and incident practices are documented in [docs/02-architecture/security.md](security.md).
 
 ## Scalability
 
@@ -240,8 +214,4 @@ Each service is a Docker container defined in ECR (Elastic Container Registry).
 | **Total** | | **~$143** |
 
 Free tier can reduce this by ~30%.
-
-## Deployment via AWS CDK (TypeScript)
-
-See [../implementation/infrastructure-cdk.md](../implementation/infrastructure-cdk.md) for the CDK module layout and deployment instructions.
 
