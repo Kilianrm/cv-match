@@ -157,7 +157,13 @@ Success response example:
 	"email": "user@example.com",
 	"full_name": "Jane Doe",
 	"headline": "Backend Developer",
-	"location": "Buenos Aires, AR",
+	"location_components": {
+		"country_code": "AR",
+		"country_name": "Argentina",
+		"region": "Buenos Aires",
+		"city": "Buenos Aires",
+		"postal_code": "C1000"
+	},
 	"years_experience": 5,
 	"summary": "Backend engineer focused on scalable APIs, cloud infrastructure, and data-intensive services.",
 	"skills": ["python", "aws", "sql"],
@@ -225,6 +231,11 @@ Success response example:
 	- URL example: `https://<host>/api/<version>/matches?limit=20&offset=0`
 - Success responses: `200 OK`
 - Error responses: `400 Bad Request`, `401 Unauthorized`, `500 Internal Server Error`
+
+Notes:
+- This endpoint is the user-facing contract for matched offer cards.
+- Response items include only card-level offer fields and the source redirect link (`apply_url`).
+- Full internal job-offer records are not exposed to end users through a separate jobs-detail endpoint.
 
 Query params example:
 ```json
