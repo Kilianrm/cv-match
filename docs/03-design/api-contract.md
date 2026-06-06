@@ -11,6 +11,30 @@ Define the external API contract for CV Match.
 - Authentication model: Amazon Cognito JWT bearer tokens for protected endpoints
 - Full URL template: `https://<host>/api/v<version>/{endpoint}`
 
+## Endpoint Tree Map
+
+```text
+/api/v1
+|-- /auth
+|   |-- POST /auth/register
+|   |-- POST /auth/login
+|   `-- POST /auth/logout
+|-- /cv
+|   |-- POST /cv/upload
+|   `-- GET /cv/current
+|-- /profile
+|   `-- GET /profile
+|-- /matches
+|   |-- GET /matches
+|   |-- POST /matches/{id}/optimize-cv
+|   `-- GET /matches/{id}/optimized-cv
+|-- /optimizations
+|   `-- GET /optimizations/{optimization_request_id}/status
+`-- /notifications/preferences
+	|-- GET /notifications/preferences
+	`-- PUT /notifications/preferences
+```
+
 ## Endpoints
 
 ### Auth

@@ -29,6 +29,7 @@ Key fields:
 - `updated_at`
 
 Notes:
+- Owner service: [PROFILE Service](services/1-profile-service.md)
 - One row per application user.
 - `cognito_sub` must be unique and is the main link between Cognito and the database user record.
 
@@ -49,6 +50,7 @@ Key fields:
 - `is_active`
 
 Notes:
+- Owner service: [CV Parser Service](services/2-cv-parser-service.md)
 - The database stores metadata, not the raw file bytes.
 - A user can have multiple CV upload records over time; exactly one can be marked active.
 - The uploaded file binary is stored in object storage (S3) and referenced by `storage_key`.
@@ -78,6 +80,7 @@ Key fields:
 - `updated_at`
 
 Notes:
+- Owner service: [PROFILE Service](services/1-profile-service.md)
 - This table is the canonical source for the user?s public profile data.
 - CV parsing can populate or refresh profile content.
 - The API `GET /profile` response is assembled from this table plus related profile sub-entities.
@@ -101,6 +104,7 @@ Key fields:
 - `sort_order`
 
 Notes:
+- Owner service: [PROFILE Service](services/1-profile-service.md)
 - Stored as a separate table to support search, filtering, and ranking.
 - Multiple skills can be linked to the same profile.
 
@@ -116,6 +120,7 @@ Key fields:
 - `sort_order`
 
 Notes:
+- Owner service: [PROFILE Service](services/1-profile-service.md)
 - Represents the `preferred_roles` array from `GET /profile`.
 - Keeping roles normalized helps filtering and ranking against job titles.
 
@@ -135,6 +140,7 @@ Key fields:
 - `sort_order`
 
 Notes:
+- Owner service: [PROFILE Service](services/1-profile-service.md)
 - Represents the `experience` array from `GET /profile`.
 - Can be sourced from CV parsing and later edited by the user.
 
@@ -153,6 +159,7 @@ Key fields:
 - `sort_order`
 
 Notes:
+- Owner service: [PROFILE Service](services/1-profile-service.md)
 - Represents the `education` array from `GET /profile`.
 - Stored separately so profile retrieval stays rich without overloading the base profile row.
 
@@ -169,6 +176,7 @@ Key fields:
 - `expires_at` (nullable)
 
 Notes:
+- Owner service: [PROFILE Service](services/1-profile-service.md)
 - Represents the `certifications` array from `GET /profile`.
 - Useful for filtering and relevance scoring in matching.
 
@@ -195,6 +203,7 @@ Key fields:
 - `status` (for example: active, expired, archived)
 
 Notes:
+- Owner service: [Job Scraper Service](services/3-scraper-service.md)
 - Job offers can come from multiple sources and should be deduplicated by source identity.
 - Matching logic reads from this table, but the UI should only see user-facing offer data.
 
@@ -214,6 +223,7 @@ Key fields:
 - `rank_reason_summary` (optional)
 
 Notes:
+- Owner service: [Matching Service](services/4-matching-service.md)
 - One match links one user profile to one job offer.
 - The CV is used upstream to parse and enrich the profile, but it is not the main matching entity.
 - Optimized CV output should be stored in a dedicated entity linked to the match, not embedded directly in this table.
@@ -236,6 +246,7 @@ Key fields:
 - `updated_at`
 
 Notes:
+- Owner service: [CV Optimization Service](services/6-cv-optimizater-service.md)
 - This table separates optimization lifecycle concerns from match scoring data.
 - Generated optimized CV file binaries are stored in object storage (S3), while this table stores metadata and status.
 - For the current product scope, enforce at most one optimization record per match.
@@ -256,6 +267,7 @@ Key fields:
 - `updated_at`
 
 Notes:
+- Owner service: [Notification Service](services/5-notification-service.md) (managed through API endpoint boundary).
 - This is the source of truth for notification channel preferences.
 - The API can expose a summary of this table in profile, but the dedicated endpoint remains the primary contract.
 
@@ -276,29 +288,10 @@ Key fields:
 - `error_code` (nullable)
 
 Notes:
+- Owner service: [Notification Service](services/notification-service.md)
 - Used for delivery history, retries, and troubleshooting.
 - This table is operational and should not be treated as user profile data.
 
-### Service Run Tables
-
-Generic operational tables for async jobs and service execution tracking.
-
-Key fields:
-- `id`
-- `service_name`
-- `operation_name`
-- `entity_type`
-- `entity_id`
-- `status` (queued, running, completed, failed)
-- `attempt_count`
-- `started_at` (nullable)
-- `finished_at` (nullable)
-- `error_code` (nullable)
-- `request_id`
-
-Notes:
-- These tables support background workflows such as parsing, matching, and optimization.
-- They help correlate frontend requests with asynchronous processing and retries.
 
 ## Relationships
 
