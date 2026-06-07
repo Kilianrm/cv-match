@@ -4,81 +4,19 @@
 
 CV Match is deployed on AWS as a cloud-native microservices architecture. Core workloads run in containerized services on ECS Fargate, with event-driven asynchronous processing via SQS and EventBridge, managed persistence with Aurora PostgreSQL and S3, and integrated observability through CloudWatch and X-Ray.
 
-## Deployment Diagram
+## Deployment Topology Diagram
 
-```mermaid
-graph TB
-    subgraph "Frontend"
-        S3_FE["AWS S3<br/>(Static Assets)"]
-        CF["AWS CloudFront<br/>(CDN)"]
-    end
+Use this diagram to understand where each component is deployed in AWS and how infrastructure boundaries are organized.
 
-    subgraph "Networking"
-        ALB["Application Load Balancer<br/>(Public HTTPS)"]
-        NG["Security Groups<br/>& NACLs"]
-    end
+- [docs/02-architecture/deployment-diagram.md](deployment-diagram.md)
 
-    subgraph "Compute: ECS Fargate"
-        API["API Service<br/>(FastAPI/Node)"]
-        PARSER["Parser Worker"]
-        SCRAPER["Scraper Worker"]
-        MATCHER["Matcher Worker"]
-        EMAIL_W["Email Worker"]
-    end
+## Integration Flow Diagram
 
-    subgraph "Data Layer"
-        RDS["RDS PostgreSQL<br/>(Multi-AZ)"]
-        S3_CV["S3 Bucket<br/>(CV PDFs)"]
-        SECRETS["Secrets Manager<br/>(DB password, API keys)"]
-    end
+Use this diagram to understand runtime interactions, asynchronous queues, and cross-service data flow.
 
-    subgraph "Async & Scheduling"
-        SQS["SQS Queue<br/>(parse, scrape, match jobs)"]
-        EB["EventBridge Scheduler<br/>(Scrape and system-match schedules)"]
-    end
+- [docs/02-architecture/integration-diagram.md](integration-diagram.md)
 
-    subgraph "External Services"
-        COGNITO["Amazon Cognito<br/>(User auth)"]
-        SES["Amazon SES<br/>(Email delivery)"]
-    end
 
-    subgraph "Observability"
-        CW_LOGS["CloudWatch Logs"]
-        CW_METRICS["CloudWatch Metrics"]
-        XRAY["AWS X-Ray<br/>(Tracing)"]
-    end
-
-    CF --> S3_FE
-    CF --> ALB
-    ALB --> API
-
-    API --> COGNITO
-    API --> RDS
-    API --> S3_CV
-    API --> SQS
-    API --> SECRETS
-
-    SQS --> PARSER
-    SQS --> SCRAPER
-    SQS --> MATCHER
-    SQS --> EMAIL_W
-
-    PARSER --> RDS
-    SCRAPER --> RDS
-    MATCHER --> RDS
-    EMAIL_W --> SES
-
-    EB --> SQS
-
-    API --> CW_LOGS
-    PARSER --> CW_LOGS
-    SCRAPER --> CW_LOGS
-    MATCHER --> CW_LOGS
-    EMAIL_W --> CW_LOGS
-
-    API --> CW_METRICS
-    API --> XRAY
-```
 
 ## Service-by-Service Details
 
@@ -129,28 +67,12 @@ Each service is a Docker container defined in ECR (Elastic Container Registry).
     - Triggers scheduled scrape jobs
     - Triggers scheduled system-scope matching jobs (for example, with an offset after scraping)
 
-### Auth: Cognito
-
-Detailed authentication and authorization flows are documented in [docs/02-architecture/authentication.md](authentication.md).
-
-### Secrets: Secrets Manager
-- **Secret Scope**: Stores sensitive runtime configuration only (database credentials, third-party API keys, and AI provider credentials)
-- **Least-Privilege Access**: Each ECS service task role reads only the secrets it needs; secrets are not shared broadly across services
-- **Runtime Retrieval**: Services fetch secrets at startup or via periodic refresh, avoiding hardcoded credentials in code, images, or environment files committed to source control
-- **Rotation Policy**: Automatic rotation enabled where supported (for example, database credentials), with periodic manual rotation for external provider keys that do not support native rotation
-- **Auditability**: Access to secrets is logged with CloudTrail and monitored for unusual read patterns
-
-### Observability
-- Observability standards, dashboards, alert rules, and operational monitoring are documented in [docs/02-architecture/observability.md](observability.md).
-
-### Deployment Operations
-- Deployment environments, release flow, CI/CD policy, and rollback strategy are documented in [docs/02-architecture/deployment.md](deployment.md).
 
 ## High-Level Data Flow
 
 1. **User uploads CV (API)**
    - API receives PDF
-   - Upsert in S3
+    - Stores the file in S3 and writes upload metadata to Aurora PostgreSQL
    - Enqueues `parse_cv_requested` job to `CV Parser Owned Queue`
    - Returns job ID to frontend
 
@@ -158,9 +80,9 @@ Detailed authentication and authorization flows are documented in [docs/02-archi
    - Dequeues `parse_cv_requested` from `CV Parser Owned Queue`
    - Fetches PDF from S3
    - Parses and normalizes data
-   - Upsert CV profile to Aurora PostgreSQL
+    - Updates profile-related tables in Aurora PostgreSQL from parsed CV data
    - Deletes message from SQS
-   - Enqueues `match_jobs_requested(scope=user,user_id,cv_id,trigger_type = upload)` job to `Matching Owned Queue`
+    - Enqueues `match_jobs_requested(scope=user,user_id,profile_id,trigger_type=upload)` job to `Matching Owned Queue`
 
 3. **Job Scraper Worker processes one source per job**
     - A scheduled workflow enqueues ` scrape_jobs_requested(source,trace_id,trigger_type=scheduled)` job to `Job Scraper Owned Queue`
@@ -185,10 +107,6 @@ Detailed authentication and authorization flows are documented in [docs/02-archi
     - Records digest in Aurora PostgreSQL
     - Deletes message from `Notification Owned Queue`
 
-## Security Model
-
-Detailed controls, threat coverage, and incident practices are documented in [docs/02-architecture/security.md](security.md).
-
 ## Scalability
 
 ### Horizontal
@@ -200,18 +118,21 @@ Detailed controls, threat coverage, and incident practices are documented in [do
 - Fargate task sizes: 256 CPU / 512 MB to 4096 CPU / 30 GB
 - RDS instance class: db.t3.micro to db.m5.4xlarge
 
-## Cost Estimation (USD/month, free tier included)
+## Performance
 
-| Service | Usage | Cost |
-|---------|-------|------|
-| ECS Fargate | 100 GB-hours/month (4 services) | $20 |
-| Aurora PostgreSQL | Serverless or small provisioned cluster | $15+ |
-| S3 | 100 GB stored, 1M requests | $5 |
-| ALB | 1 LCU equivalent | $18 |
-| CloudFront | 1 TB transfer | $85 |
-| SQS | 1M messages/month | $0.40 |
-| SES | 50k emails/month | $0 (free tier) |
-| **Total** | | **~$143** |
+- Performance goals, bottleneck analysis, and optimization strategy are documented in [docs/02-architecture/performance.md](performance.md).
 
-Free tier can reduce this by ~30%.
 
+## Authentication
+
+- Detailed authentication and authorization flows are documented in [docs/02-architecture/authentication.md](authentication.md).
+
+## Security 
+
+- Detailed controls, threat coverage, and incident practices are documented in [docs/02-architecture/security.md](security.md).
+
+## Observability
+- Observability standards, dashboards, alert rules, and operational monitoring are documented in [docs/02-architecture/observability.md](observability.md).
+
+## Release and Operations
+- Deployment environments, release flow, CI/CD policy, and rollback strategy are documented in [docs/02-architecture/release-operations.md](release-operations.md).
