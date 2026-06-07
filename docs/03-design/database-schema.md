@@ -24,7 +24,9 @@ Key fields:
 - `id` (internal primary key)
 - `cognito_sub` (Cognito identity reference)
 - `email`
+- `email_verified`
 - `status` (for example: active, suspended, deleted)
+- `last_synced_from_cognito_at` (nullable)
 - `created_at`
 - `updated_at`
 
@@ -32,6 +34,9 @@ Notes:
 - Owner service: [PROFILE Service](services/1-profile-service.md)
 - One row per application user.
 - `cognito_sub` must be unique and is the main link between Cognito and the database user record.
+- This table is the identity bridge (`cognito_sub -> id`) for the rest of the business schema.
+- No separate mapping table is required for MVP; keep identity mapping and account attributes in `Users`.
+- `email` is an account attribute synchronized from Cognito, not the primary identity key.
 
 ### CV Upload Records
 

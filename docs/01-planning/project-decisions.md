@@ -184,15 +184,3 @@ Fill in with your choices: "CloudWatch", "Prometheus", "DataDog", "yes", "no", e
 ---
 
 
-
-## Section 11: Open Questions / Uncertainties
-
-**What are you unsure about?** (Write freely?no wrong answers here)
-
-1. ________________
-2. ________________
-3. ________________
-
-
----
-

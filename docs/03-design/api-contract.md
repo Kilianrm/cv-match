@@ -6,19 +6,43 @@ Define the external API contract for CV Match.
 
 ## Base Information
 
-- Base URL: `/api`
-- Versioning strategy: `/v1` path prefix
-- Authentication model: Amazon Cognito JWT bearer tokens for protected endpoints
-- Full URL template: `https://<host>/api/v<version>/{endpoint}`
+### Cognito Authentication
 
-## Endpoint Tree Map
+Authentication is handled by Amazon Cognito.
+
+Base URL:
+https://<cognito-domain>.auth.<region>.amazoncognito.com
+
+Common endpoints:
+- /oauth2/authorize
+- /oauth2/token
+- /logout
+
+User registration, login, password reset and account management are provided by Cognito Hosted UI or Cognito SDKs, depending on the client implementation.
+### API Gateway (Business APIs)
+
+- Use this host for all business endpoints (cv, profile, matches, notifications).
+- Endpoint pattern: `https://<api-domain>/api/v1/{endpoint}`
+- Protected endpoints require `Authorization: Bearer <token>` (token issued by Cognito).
+
+
+## Endpoint Groups
+
+### 1) Cognito-Exposed Auth Endpoints
+
+```text
+https://<cognito-domain>.auth.<region>.amazoncognito.com
+|-- register (SignUp)
+|-- login (SignIn / InitiateAuth)
+`-- logout (GlobalSignOut)
+```
+
+### 2) API Gateway Endpoints
 
 ```text
 /api/v1
 |-- /auth
-|   |-- POST /auth/register
-|   |-- POST /auth/login
-|   `-- POST /auth/logout
+|   `-- POST /auth/session
 |-- /cv
 |   |-- POST /cv/upload
 |   `-- GET /cv/current
@@ -37,73 +61,29 @@ Define the external API contract for CV Match.
 
 ## Endpoints
 
-### Auth
+### Auth Session
 
-#### POST /auth/register
+#### POST /auth/session
 
-- Purpose: Register a new user in Cognito, then create and link the application user record in the database..
-- Auth: Public endpoint (no JWT required).
-- Request:
-	- Headers: `Content-Type: application/json`
-	- Body: `email` (required), `password` (required)
-- Success responses: `201 Created`
-- Error responses: `400 Bad Request`, `409 Conflict`, `429 Too Many Requests`, `500 Internal Server Error`
-
-Request example:
-```json
-{
-	"email": "user@example.com",
-	"password": "StrongPass123!",
-	"full_name": "Jane Doe"
-}
-```
-
-Success response example:
-```json
-{
-	"user_id": "u1",
-	"cognito_user_id": "0f3f3b1a-2a4b-4f0b-9f4a-1dc3e7f4a9f2",
-	"status": "registered",
-	"message": "User registered successfully"
-}
-```
-
-#### POST /auth/login
-
-- Purpose: Authenticate a user and return a session token set.
-- Auth: Public endpoint (no JWT required).
-- Request:
-	- Headers: `Content-Type: application/json`
-	- Body: `email` (required), `password` (required)
-- Success responses: `200 OK`
-- Error responses: `400 Bad Request`, `401 Unauthorized`, `429 Too Many Requests`, `500 Internal Server Error`
-
-Request example:
-```json
-{
-	"email": "user@example.com",
-	"password": "StrongPass123!"
-}
-```
-
-Success response example:
-```json
-{
-	"access_token": "eyJ...",
-	"refresh_token": "eyJ...",
-	"expires_in": 3600,
-	"token_type": "Bearer"
-}
-```
-
-#### POST /auth/logout
-
-- Purpose: Invalidate the current session token.
-- Auth: Protected endpoint (Bearer JWT required).
+- Purpose: Start an application session using a Cognito JWT and ensure the internal user exists.
+- Auth: Protected endpoint (Bearer JWT required, token issued by Cognito).
 - Request:
 	- Headers: `Authorization: Bearer <token>`
-- Success responses: `204 No Content`
+	- Body: none
+- Behavior:
+	- Validate JWT claims.
+	- Extract identity fields (`sub`, `email`, `email_verified`).
+	- Create the internal user on first login, or update identity attributes if the user already exists.
+- Success responses: `200 OK`
 - Error responses: `401 Unauthorized`, `500 Internal Server Error`
+
+Success response example:
+```json
+{
+	"status": "authenticated",
+	"is_new_user": false
+}
+```
 
 
 ### CV Management
