@@ -12,7 +12,7 @@ CV Match uses Amazon Cognito as the managed identity provider for end-user authe
 - Protocols: OAuth 2.0 and OpenID Connect (OIDC)
 - Client integration: Frontend web app authenticates through a Cognito App Client
 - API trust model: API accepts only Cognito-issued JWTs on protected routes
-- Domain: Cognito hosted domain for MVP; custom domain (auth.cv-match.com) can be enabled later
+- Domain: Cognito hosted domain for MVP; custom domain `auth.cv-match.com` can be enabled later
 - MFA: Optional in MVP, with the ability to enforce it per environment or risk profile
 
 This choice removes the need to build password storage and credential lifecycle logic in-house, while keeping a native integration with AWS services and IAM-based operational controls.

@@ -171,10 +171,3 @@ Priority in MVP:
 - Con: requires recurring performance review discipline.
 6. Portfolio acceptance rule
 - Current tradeoffs are acceptable while goals are met and incidents are diagnosable.
-
-## Open Questions
-1. What default scrape/rematch cadence best balances freshness and cost?
-2. What matcher batch size gives the best predictability and total completion time?
-3. Should notifications remain strict digest-only or add near-real-time for high-score matches?
-4. What retention period for run metadata balances troubleshooting value and storage/query cost?
-5. What exact threshold defines repeated goal violation for policy or tier review?
