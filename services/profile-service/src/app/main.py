@@ -184,11 +184,16 @@ async def get_profile(user_id: str) -> dict:
     description="Creates or updates profile data for a specific user.",
 )
 async def upsert_profile(user_id: str, payload: UpdateProfileRequest) -> dict:
-    profile_store.upsert_profile(user_id, payload.model_dump())
+    try:
+        validated_payload = profile_store.validate_base_profile_payload(payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    profile_store.upsert_profile(user_id, validated_payload)
     return {
         "status": "accepted",
         "user_id": user_id,
-        "profile": payload.model_dump(),
+        "profile": validated_payload,
     }
 
 
@@ -198,9 +203,14 @@ async def upsert_profile(user_id: str, payload: UpdateProfileRequest) -> dict:
     description="Updates profile data for a specific user.",
 )
 async def update_profile(user_id: str, payload: UpdateProfileRequest) -> dict:
-    profile_store.upsert_profile(user_id, payload.model_dump())
+    try:
+        validated_payload = profile_store.validate_base_profile_payload(payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    profile_store.upsert_profile(user_id, validated_payload)
     return {
         "status": "accepted",
         "user_id": user_id,
-        "profile": payload.model_dump(),
+        "profile": validated_payload,
     }

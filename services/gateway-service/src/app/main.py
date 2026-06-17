@@ -131,6 +131,14 @@ async def update_profile(request: Request) -> Any:
         f"/internal/users/{user_id}/profile",
         json=body,
     )
+    if resp.status_code == 404:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    if resp.status_code in (400, 422):
+        try:
+            detail = resp.json().get("detail", "Invalid profile payload")
+        except ValueError:
+            detail = "Invalid profile payload"
+        raise HTTPException(status_code=resp.status_code, detail=detail)
     if resp.status_code != 200:
         raise HTTPException(status_code=502, detail="Failed to update profile")
     return resp.json()

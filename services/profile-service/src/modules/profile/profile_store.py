@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from uuid import UUID
 
 from psycopg import OperationalError, connect
 
@@ -14,6 +15,13 @@ class ProfileStore:
 
     def _connect(self):
         return connect(self._database_url)
+
+    @staticmethod
+    def _normalize_optional_text(value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized if normalized else None
 
     def _initialize_schema(self) -> None:
         for attempt in range(1, self._max_init_retries + 1):
@@ -125,6 +133,98 @@ class ProfileStore:
                     "certifications": [],
                     "cv": None,
                 }
+
+    def validate_base_profile_payload(self, data: dict) -> dict:
+        """Validate and normalize base profile edit payload (Step 5).
+
+        Raises:
+            ValueError: for user-facing validation issues.
+        """
+        normalized = dict(data)
+
+        full_name = self._normalize_optional_text(normalized.get("full_name"))
+        if not full_name:
+            raise ValueError("full_name is required")
+        normalized["full_name"] = full_name
+
+        normalized["headline"] = self._normalize_optional_text(normalized.get("headline"))
+        normalized["summary"] = self._normalize_optional_text(normalized.get("summary"))
+        normalized["location"] = self._normalize_optional_text(normalized.get("location"))
+
+        country_code = self._normalize_optional_text(normalized.get("country_code"))
+        if country_code:
+            country_code = country_code.upper()
+            if len(country_code) != 2:
+                raise ValueError("country_code must be an ISO alpha-2 code")
+        normalized["country_code"] = country_code
+
+        region_id = self._normalize_optional_text(normalized.get("region_id"))
+        city_id = self._normalize_optional_text(normalized.get("city_id"))
+
+        if region_id:
+            try:
+                region_id = str(UUID(region_id))
+            except ValueError as exc:
+                raise ValueError("region_id must be a valid UUID") from exc
+        if city_id:
+            try:
+                city_id = str(UUID(city_id))
+            except ValueError as exc:
+                raise ValueError("city_id must be a valid UUID") from exc
+
+        if city_id and not region_id:
+            raise ValueError("region_id is required when city_id is provided")
+        if region_id and not country_code:
+            raise ValueError("country_code is required when region_id is provided")
+
+        years_experience = normalized.get("years_experience")
+        if years_experience is not None:
+            if years_experience < 0 or years_experience > 60:
+                raise ValueError("years_experience must be between 0 and 60")
+
+        work_mode = self._normalize_optional_text(normalized.get("work_mode_preference"))
+        if work_mode:
+            work_mode = work_mode.lower()
+            allowed_work_modes = {"remote", "hybrid", "onsite"}
+            if work_mode not in allowed_work_modes:
+                raise ValueError("work_mode_preference must be one of: remote, hybrid, onsite")
+        normalized["work_mode_preference"] = work_mode
+
+        normalized["region_id"] = region_id
+        normalized["city_id"] = city_id
+
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                if country_code:
+                    cur.execute("SELECT 1 FROM countries WHERE code = %s", (country_code,))
+                    if cur.fetchone() is None:
+                        raise ValueError("country_code does not exist")
+
+                if region_id:
+                    cur.execute(
+                        "SELECT country_code FROM regions WHERE id = %s",
+                        (region_id,),
+                    )
+                    region_row = cur.fetchone()
+                    if region_row is None:
+                        raise ValueError("region_id does not exist")
+                    if country_code and region_row[0] != country_code:
+                        raise ValueError("region_id does not belong to country_code")
+
+                if city_id:
+                    cur.execute(
+                        "SELECT country_code, region_id FROM cities WHERE id = %s",
+                        (city_id,),
+                    )
+                    city_row = cur.fetchone()
+                    if city_row is None:
+                        raise ValueError("city_id does not exist")
+                    if country_code and city_row[0] != country_code:
+                        raise ValueError("city_id does not belong to country_code")
+                    if region_id and str(city_row[1]) != region_id:
+                        raise ValueError("city_id does not belong to region_id")
+
+        return normalized
 
     def upsert_profile(self, user_id: str, data: dict) -> None:
         with self._connect() as conn:

@@ -213,6 +213,28 @@ def test_06_database_rows_persisted() -> None:
     assert_eq("AT", parts[3], "stored profile country_code")
 
 
+def test_07_profile_validation_rejects_invalid_location_hierarchy() -> None:
+    print("[7/7] profile update validation rejects city_id without region_id")
+    invalid_body = json.dumps(
+        {
+            "full_name": "Local Test User",
+            "headline": "QA Engineer",
+            "city_id": "10000003-0000-0000-0000-000000000003",
+        }
+    ).encode("utf-8")
+
+    status, payload = http_request(
+        "PUT",
+        "http://localhost:8000/api/v1/profile",
+        body=invalid_body,
+        headers={**AUTH_HEADERS, "Content-Type": "application/json"},
+    )
+    assert_eq(422, status, "invalid profile update status code")
+    data = json.loads(payload)
+    expected_detail = "region_id is required when city_id is provided"
+    assert_eq(expected_detail, data.get("detail"), "invalid profile update detail")
+
+
 def run_all_tests() -> None:
     test_01_gateway_health()
     test_02_auth_session_through_gateway_service()
@@ -220,6 +242,7 @@ def run_all_tests() -> None:
     test_04_profile_upsert_and_read()
     test_05_cv_upload_through_gateway_service()
     test_06_database_rows_persisted()
+    test_07_profile_validation_rejects_invalid_location_hierarchy()
 
     print("\nCross-service Python tests passed!")
 
