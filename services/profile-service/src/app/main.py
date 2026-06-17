@@ -11,12 +11,13 @@ from typing import Optional
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
+
 from src.shared.config import settings
 from src.shared.cv_validation import validate_cv_file
 from src.shared.s3_storage import S3Storage
 from src.modules.profile.profile_store import ProfileStore
 from src.modules.users.users_store import UsersStore
-
+from src.modules.locations.locations_store import LocationsStore
 logging.basicConfig(
     level=settings.log_level,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
@@ -31,6 +32,60 @@ storage = S3Storage()
 users_store = UsersStore(settings.database_url)
 profile_store = ProfileStore(settings.database_url)
 
+locations_store = LocationsStore(settings.database_url)
+
+
+@app.get(
+    "/internal/locations/countries",
+    summary="List all countries",
+    description="Returns all countries in the location catalog.",
+)
+async def list_countries(limit: int = 500) -> dict:
+    """Return all countries, optionally limited."""
+    countries = locations_store.get_countries(limit=limit)
+    return {
+        "status": "ok",
+        "count": len(countries),
+        "limit": limit,
+        "countries": countries,
+    }
+
+
+@app.get(
+    "/internal/locations/regions",
+    summary="List regions",
+    description="Returns regions, optionally filtered by country code.",
+)
+async def list_regions(country_code: Optional[str] = None, limit: int = 500) -> dict:
+    """Return regions, optionally filtered by country_code query parameter."""
+    regions = locations_store.get_regions(country_code=country_code, limit=limit)
+    return {
+        "status": "ok",
+        "count": len(regions),
+        "limit": limit,
+        "country_code_filter": country_code,
+        "regions": regions,
+    }
+
+
+@app.get(
+    "/internal/locations/cities",
+    summary="List cities",
+    description="Returns cities, optionally filtered by country code and/or region ID.",
+)
+async def list_cities(
+    country_code: Optional[str] = None, region_id: Optional[str] = None, limit: int = 500
+) -> dict:
+    """Return cities, optionally filtered by country_code and/or region_id query parameters."""
+    cities = locations_store.get_cities(country_code=country_code, region_id=region_id, limit=limit)
+    return {
+        "status": "ok",
+        "count": len(cities),
+        "limit": limit,
+        "country_code_filter": country_code,
+        "region_id_filter": region_id,
+        "cities": cities,
+    }
 
 class SyncFromJwtRequest(BaseModel):
     """Payload received from internal auth flow to synchronize a user."""

@@ -157,3 +157,44 @@ async def upload_cv(request: Request, file: UploadFile = File(...)) -> Any:
     if resp.status_code != 200:
         raise HTTPException(status_code=502, detail="CV upload failed")
     return JSONResponse(status_code=202, content=resp.json())
+
+
+# ---------------------------------------------------------------------------
+# Locations (Public)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/v1/locations/countries", summary="List all countries")
+async def list_countries(limit: int = 500) -> Any:
+    """Return all countries in the location catalog (no authentication required)."""
+    resp = await _profile_client().get("/internal/locations/countries", params={"limit": limit})
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to retrieve countries")
+    return resp.json()
+
+
+@app.get("/api/v1/locations/regions", summary="List regions")
+async def list_regions(country_code: str | None = None, limit: int = 500) -> Any:
+    """Return regions, optionally filtered by country code (no authentication required)."""
+    params = {"limit": limit}
+    if country_code:
+        params["country_code"] = country_code
+    resp = await _profile_client().get("/internal/locations/regions", params=params)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to retrieve regions")
+    return resp.json()
+
+
+@app.get("/api/v1/locations/cities", summary="List cities")
+async def list_cities(
+    country_code: str | None = None, region_id: str | None = None, limit: int = 500
+) -> Any:
+    """Return cities, optionally filtered by country code and/or region ID (no authentication required)."""
+    params = {"limit": limit}
+    if country_code:
+        params["country_code"] = country_code
+    if region_id:
+        params["region_id"] = region_id
+    resp = await _profile_client().get("/internal/locations/cities", params=params)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to retrieve cities")
+    return resp.json()
