@@ -1,12 +1,12 @@
 services:
-  gateway:
+  gateway-service:
     build:
-      context: ./services/gateway
+      context: ./services/gateway-service
       dockerfile: docker/Dockerfile
-    image: gateway:local
-    container_name: gateway
+    image: gateway-service:local
+    container_name: gateway-service
     env_file:
-      - ./services/gateway/.env
+      - ./services/gateway-service/.env
     ports:
       - "8000:8000"
     depends_on:
