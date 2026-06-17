@@ -9,13 +9,13 @@ SERVICES=(gateway-service profile-service postgres localstack)
 
 cleanup() {
     echo "Stopping test containers..."
-    docker compose down --remove-orphans >/dev/null
+  docker compose down --remove-orphans -v >/dev/null
 }
 
 trap cleanup EXIT
 
 echo "Starting required containers for test run..."
-docker compose down --remove-orphans >/dev/null 2>&1 || true
+docker compose down --remove-orphans -v >/dev/null 2>&1 || true
 docker compose up -d --build "${SERVICES[@]}"
 
 # Cross-service tests run on host because they orchestrate multiple containers

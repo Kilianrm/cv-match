@@ -115,7 +115,13 @@ def test_04_profile_upsert_and_read() -> None:
         {
             "full_name": "Local Test User",
             "headline": "QA Engineer",
-            "location": "Buenos Aires",
+            "summary": "Quality focused engineer",
+            "country_code": "AT",
+            "region_id": "00000003-0000-0000-0000-000000000003",
+            "city_id": "10000003-0000-0000-0000-000000000003",
+            "years_experience": 4,
+            "work_mode_preference": "remote",
+            "location": "Vienna",
         }
     ).encode("utf-8")
     status, payload = http_request(
@@ -132,7 +138,22 @@ def test_04_profile_upsert_and_read() -> None:
     status, payload = http_request("GET", "http://localhost:8000/api/v1/profile", headers=AUTH_HEADERS)
     assert_eq(200, status, "profile read after upsert status code")
     data = json.loads(payload)
-    assert_eq("Local Test User", data.get("full_name"), "profile full_name")
+    profile = data.get("profile", {})
+    user = data.get("user", {})
+    location = data.get("location", {})
+    assert_eq("Local Test User", profile.get("full_name"), "profile.full_name")
+    assert_eq("QA Engineer", profile.get("headline"), "profile.headline")
+    assert_eq("Quality focused engineer", profile.get("summary"), "profile.summary")
+    assert_eq("AT", profile.get("country_code"), "profile.country_code")
+    assert_eq("4", str(profile.get("years_experience")), "profile.years_experience")
+    assert_eq("remote", profile.get("work_mode_preference"), "profile.work_mode_preference")
+    assert_eq("local@example.com", user.get("email"), "user.email")
+    assert_eq("Austria", (location.get("country") or {}).get("name"), "location.country.name")
+
+    # Ensure subsection keys exist and are frontend-friendly by default.
+    for section in ["skills", "preferred_roles", "experience", "education", "certifications"]:
+        if section not in data or not isinstance(data[section], list):
+            raise AssertionError(f"expected list section '{section}' in profile payload")
 
 
 def test_05_cv_upload_through_gateway_service() -> None:
@@ -172,7 +193,7 @@ def test_06_database_rows_persisted() -> None:
     print("Verifying upserted profile values are persisted in PostgreSQL")
     profile_row = psql_scalar(
         """
-        SELECT p.full_name || '|' || COALESCE(p.headline, '') || '|' || COALESCE(p.location, '')
+        SELECT p.full_name || '|' || COALESCE(p.headline, '') || '|' || COALESCE(p.location, '') || '|' || COALESCE(p.country_code, '')
         FROM profiles p
         JOIN users u ON u.id = p.user_id
         WHERE u.cognito_sub = 'local-user-sub'
@@ -182,13 +203,14 @@ def test_06_database_rows_persisted() -> None:
     if not profile_row:
         raise AssertionError("expected profile row for cognito_sub=local-user-sub")
 
-    parts = profile_row.split("|", 2)
-    if len(parts) != 3:
+    parts = profile_row.split("|", 3)
+    if len(parts) != 4:
         raise AssertionError(f"unexpected profile row shape: {profile_row}")
 
     assert_eq("Local Test User", parts[0], "stored profile full_name")
     assert_eq("QA Engineer", parts[1], "stored profile headline")
-    assert_eq("Buenos Aires", parts[2], "stored profile location")
+    assert_eq("Vienna", parts[2], "stored profile location")
+    assert_eq("AT", parts[3], "stored profile country_code")
 
 
 def run_all_tests() -> None:

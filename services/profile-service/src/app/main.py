@@ -100,7 +100,13 @@ class UpdateProfileRequest(BaseModel):
 
     full_name: str = Field(..., description="User full name")
     headline: Optional[str] = Field(default=None, description="Professional headline")
-    location: Optional[str] = Field(default=None, description="Current location")
+    summary: Optional[str] = Field(default=None, description="Professional summary")
+    country_code: Optional[str] = Field(default=None, description="ISO 3166-1 alpha-2 country code")
+    region_id: Optional[str] = Field(default=None, description="Region UUID")
+    city_id: Optional[str] = Field(default=None, description="City UUID")
+    years_experience: Optional[int] = Field(default=None, description="Years of professional experience")
+    work_mode_preference: Optional[str] = Field(default=None, description="Preferred work mode")
+    location: Optional[str] = Field(default=None, description="Legacy free-text location")
 
 
 @app.get(
