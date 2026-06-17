@@ -47,7 +47,26 @@ https://<cognito-domain>.auth.<region>.amazoncognito.com
 |   |-- POST /cv/upload
 |   `-- GET /cv/current
 |-- /profile
-|   `-- GET /profile
+|   |-- GET /profile
+|   |-- PUT /profile
+|   |-- POST /profile/skills
+|   |-- DELETE /profile/skills/{skill_id}
+|   |-- POST /profile/preferred-roles
+|   |-- PUT /profile/preferred-roles/{id}
+|   |-- DELETE /profile/preferred-roles/{id}
+|   |-- POST /profile/experience
+|   |-- PUT /profile/experience/{id}
+|   |-- DELETE /profile/experience/{id}
+|   |-- POST /profile/education
+|   |-- PUT /profile/education/{id}
+|   |-- DELETE /profile/education/{id}
+|   |-- POST /profile/certifications
+|   |-- PUT /profile/certifications/{id}
+|   `-- DELETE /profile/certifications/{id}
+|-- /locations
+|   |-- GET /locations/countries
+|   |-- GET /locations/regions
+|   `-- GET /locations/cities
 |-- /matches
 |   |-- GET /matches
 |   |-- POST /matches/{id}/optimize-cv
@@ -157,25 +176,59 @@ Success response example:
 Success response example:
 ```json
 {
-	"user_id": "u1",
-	"email": "user@example.com",
-	"full_name": "Jane Doe",
-	"headline": "Backend Developer",
-	"location_components": {
-		"country_code": "AR",
-		"country_name": "Argentina",
-		"region": "Buenos Aires",
-		"city": "Buenos Aires",
-		"postal_code": "C1000"
+	"user": {
+		"user_id": "u1",
+		"email": "user@example.com"
 	},
-	"years_experience": 5,
-	"summary": "Backend engineer focused on scalable APIs, cloud infrastructure, and data-intensive services.",
-	"skills": ["python", "aws", "sql"],
-	"preferred_roles": ["Backend Engineer", "Platform Engineer"],
-	"remote_preference": "remote-first",
-	"work_mode_preference": "hybrid",
+	"profile": {
+		"full_name": "Jane Doe",
+		"headline": "Backend Developer",
+		"summary": "Backend engineer focused on scalable APIs, cloud infrastructure, and data-intensive services.",
+		"country_code": "AR",
+		"region_id": "r1",
+		"city_id": "c1",
+		"years_experience": 5,
+		"work_mode_preference": "hybrid"
+	},
+	"location": {
+		"country": {
+			"code": "AR",
+			"name": "Argentina"
+		},
+		"region": {
+			"id": "r1",
+			"name": "Buenos Aires"
+		},
+		"city": {
+			"id": "c1",
+			"name": "Buenos Aires"
+		}
+	},
+	"skills": [
+		{
+			"skill_id": "s1",
+			"label": "Python",
+			"proficiency_level": null
+		},
+		{
+			"skill_id": "s2",
+			"label": "AWS",
+			"proficiency_level": null
+		}
+	],
+	"preferred_roles": [
+		{
+			"id": "pr1",
+			"role_name": "Backend Engineer"
+		},
+		{
+			"id": "pr2",
+			"role_name": "Platform Engineer"
+		}
+	],
 	"experience": [
 		{
+			"id": "exp1",
 			"position": "Senior Backend Engineer",
 			"company": "TechNova",
 			"start_date": "2023-03-01",
@@ -200,6 +253,7 @@ Success response example:
 	],
 	"education": [
 		{
+			"id": "edu1",
 			"degree": "BSc in Computer Science",
 			"institution": "University of Buenos Aires",
 			"start_date": "2015-03-01",
@@ -209,6 +263,7 @@ Success response example:
 	],
 	"certifications": [
 		{
+			"id": "cert1",
 			"name": "AWS Certified Developer - Associate",
 			"issuer": "Amazon Web Services",
 			"issued_at": "2024-06-10"
@@ -218,10 +273,188 @@ Success response example:
 		"cv_id": "c1",
 		"parse_status": "completed",
 		"last_uploaded_at": "2026-06-05T12:00:00Z"
-	},
-	"profile_completion_percent": 82
+	}
 }
 ```
+
+#### PUT /profile
+
+- Purpose: Update the current user's base profile fields only.
+- Auth: Protected endpoint (Bearer JWT required).
+- Request:
+	- Headers: `Authorization: Bearer <token>`, `Content-Type: application/json`
+	- Body fields:
+		- `full_name`
+		- `headline`
+		- `summary`
+		- `country_code`
+		- `region_id`
+		- `city_id`
+		- `years_experience`
+		- `work_mode_preference`
+- Success responses: `200 OK`
+- Error responses: `400 Bad Request`, `401 Unauthorized`, `404 Not Found`, `422 Unprocessable Content`, `500 Internal Server Error`
+
+Request example:
+```json
+{
+	"full_name": "Jane Doe",
+	"headline": "Backend Developer",
+	"summary": "Backend engineer focused on scalable APIs.",
+	"country_code": "AR",
+	"region_id": "r1",
+	"city_id": "c1",
+	"years_experience": 5,
+	"work_mode_preference": "hybrid"
+}
+```
+
+Success response example:
+```json
+{
+	"status": "updated"
+}
+```
+
+#### POST /profile/skills
+
+- Purpose: Add a skill to the current user's profile.
+- Auth: Protected endpoint (Bearer JWT required).
+- Request body: `skill_id` (required), `proficiency_level` (optional)
+- Success responses: `201 Created`
+- Error responses: `400 Bad Request`, `401 Unauthorized`, `409 Conflict`, `500 Internal Server Error`
+
+#### DELETE /profile/skills/{skill_id}
+
+- Purpose: Remove a skill from the current user's profile.
+- Auth: Protected endpoint (Bearer JWT required).
+- Success responses: `204 No Content`
+- Error responses: `401 Unauthorized`, `404 Not Found`, `500 Internal Server Error`
+
+#### POST /profile/preferred-roles
+
+- Purpose: Add a preferred role entry.
+- Auth: Protected endpoint (Bearer JWT required).
+- Request body: `role_name` (required)
+- Success responses: `201 Created`
+
+#### PUT /profile/preferred-roles/{id}
+
+- Purpose: Update one preferred role entry.
+- Auth: Protected endpoint (Bearer JWT required).
+- Success responses: `200 OK`
+
+#### DELETE /profile/preferred-roles/{id}
+
+- Purpose: Delete one preferred role entry.
+- Auth: Protected endpoint (Bearer JWT required).
+- Success responses: `204 No Content`
+
+#### POST /profile/experience
+
+- Purpose: Add one experience item.
+- Auth: Protected endpoint (Bearer JWT required).
+- Request body fields:
+	- `position` (required)
+	- `company` (required)
+	- `start_date`
+	- `end_date`
+	- `is_current`
+	- `responsibilities`
+- Success responses: `201 Created`
+
+#### PUT /profile/experience/{id}
+
+- Purpose: Update one experience item.
+- Auth: Protected endpoint (Bearer JWT required).
+- Success responses: `200 OK`
+
+#### DELETE /profile/experience/{id}
+
+- Purpose: Delete one experience item.
+- Auth: Protected endpoint (Bearer JWT required).
+- Success responses: `204 No Content`
+
+#### POST /profile/education
+
+- Purpose: Add one education item.
+- Auth: Protected endpoint (Bearer JWT required).
+- Request body fields:
+	- `degree` (required)
+	- `institution` (required)
+	- `start_date`
+	- `end_date`
+	- `status`
+- Success responses: `201 Created`
+
+#### PUT /profile/education/{id}
+
+- Purpose: Update one education item.
+- Auth: Protected endpoint (Bearer JWT required).
+- Success responses: `200 OK`
+
+#### DELETE /profile/education/{id}
+
+- Purpose: Delete one education item.
+- Auth: Protected endpoint (Bearer JWT required).
+- Success responses: `204 No Content`
+
+#### POST /profile/certifications
+
+- Purpose: Add one certification item.
+- Auth: Protected endpoint (Bearer JWT required).
+- Request body fields:
+	- `name` (required)
+	- `issuer` (required)
+	- `issued_at`
+	- `expires_at`
+- Success responses: `201 Created`
+
+#### PUT /profile/certifications/{id}
+
+- Purpose: Update one certification item.
+- Auth: Protected endpoint (Bearer JWT required).
+- Success responses: `200 OK`
+
+#### DELETE /profile/certifications/{id}
+
+- Purpose: Delete one certification item.
+- Auth: Protected endpoint (Bearer JWT required).
+- Success responses: `204 No Content`
+
+### Location Catalog
+
+#### GET /locations/countries
+
+- Purpose: Retrieve selectable countries for profile forms.
+- Auth: Protected endpoint (Bearer JWT required).
+- Success responses: `200 OK`
+
+Success response example:
+```json
+{
+	"items": [
+		{ "code": "AR", "name": "Argentina" },
+		{ "code": "ES", "name": "Spain" }
+	]
+}
+```
+
+#### GET /locations/regions
+
+- Purpose: Retrieve selectable regions for a country.
+- Auth: Protected endpoint (Bearer JWT required).
+- Query params: `country_code` (required)
+- Success responses: `200 OK`
+
+#### GET /locations/cities
+
+- Purpose: Retrieve selectable cities for a country and optional region.
+- Auth: Protected endpoint (Bearer JWT required).
+- Query params:
+	- `country_code` (required)
+	- `region_id` (optional)
+- Success responses: `200 OK`
 
 ### Matches
 
