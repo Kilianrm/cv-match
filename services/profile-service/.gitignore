@@ -1,0 +1,18 @@
+# Environment
+.env
+
+# Python/Node generic ignores
+__pycache__/
+.pytest_cache/
+node_modules/
+dist/
+build/
+
+# OS/IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Runtime artifacts
+*.log
+coverage/

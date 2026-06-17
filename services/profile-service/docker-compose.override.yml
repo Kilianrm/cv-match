@@ -1,0 +1,14 @@
+# Development overrides for docker-compose.yml
+# Automatically used by docker compose (when running locally)
+# To use production only, explicitly use: docker compose -f docker-compose.yml
+
+services:
+  profile-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      # Mount source code for live reload
+      - ./src:/app/src
+      # Mount tests for pytest execution
+      - ./tests:/app/tests
