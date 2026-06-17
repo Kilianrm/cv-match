@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f5f2;
+  --surface: #ffffff;
+  --foreground: #1f2a37;
+  --muted: #5b6778;
+  --primary: #0e7c86;
+  --primary-strong: #0b636c;
+  --accent: #f05d5e;
+  --ring: #87d7df;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-strong: var(--primary-strong);
+  --color-accent: var(--accent);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-source-sans);
+  --font-display: var(--font-sora);
+}
+
+body {
+  min-height: 100%;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-source-sans), sans-serif;
+  background-image:
+    radial-gradient(circle at 10% 10%, #d5eff2 0%, transparent 34%),
+    radial-gradient(circle at 85% 20%, #ffd6c8 0%, transparent 30%),
+    linear-gradient(180deg, #f7f5f2 0%, #f2eeea 100%);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-sora), sans-serif;
+}
+
+.card {
+  background: color-mix(in oklab, var(--surface) 90%, #f6fbfb 10%);
+  border: 1px solid color-mix(in oklab, var(--primary) 15%, #ffffff 85%);
+  border-radius: 1rem;
+  box-shadow: 0 8px 30px rgba(14, 124, 134, 0.12);
+}
+
+.fade-up {
+  animation: fade-up 480ms ease-out both;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
