@@ -1,0 +1,11 @@
+services:
+  gateway-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: gateway-service:local
+    container_name: gateway-service
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
