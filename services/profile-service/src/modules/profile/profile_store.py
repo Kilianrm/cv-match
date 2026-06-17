@@ -31,7 +31,7 @@ class ProfileStore:
                         cur.execute(
                             """
                             CREATE TABLE IF NOT EXISTS profiles (
-                                user_id TEXT PRIMARY KEY,
+                                user_id UUID PRIMARY KEY REFERENCES users(id),
                                 full_name TEXT NOT NULL,
                                 headline TEXT,
                                 location TEXT,

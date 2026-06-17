@@ -31,17 +31,13 @@ Table profiles [headercolor: #4CAF50] {
   user_id uuid [pk]
   full_name varchar [not null]
   headline varchar
+  location varchar
   summary text
   country_code varchar(2)
   region_id uuid
   city_id uuid
-  raw_region varchar
-  raw_city varchar
   years_experience int
   work_mode_preference varchar
-  latest_source_cv_id uuid
-  last_auto_filled_at timestamptz
-  last_manual_edit_at timestamptz
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
 }
@@ -358,7 +354,6 @@ Ref: profiles.user_id - users.id
 Ref: profiles.country_code > countries.code
 Ref: profiles.region_id > regions.id
 Ref: profiles.city_id > cities.id
-Ref: profiles.latest_source_cv_id > cv_upload_records.id
 
 Ref: regions.country_code > countries.code
 Ref: cities.country_code > countries.code

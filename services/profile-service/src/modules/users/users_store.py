@@ -31,7 +31,7 @@ class UsersStore:
                         cur.execute(
                             """
                             CREATE TABLE IF NOT EXISTS users (
-                                id TEXT PRIMARY KEY,
+                                id UUID PRIMARY KEY,
                                 cognito_sub TEXT NOT NULL,
                                 email TEXT,
                                 email_verified BOOLEAN NOT NULL DEFAULT FALSE,
@@ -87,7 +87,7 @@ class UsersStore:
                         )
                     return SyncIdentityResult(internal_user_id=str(existing[0]), created=False)
 
-                internal_user_id = str(uuid.uuid4())
+                internal_user_id = uuid.uuid4()
                 cur.execute(
                     """
                     INSERT INTO users (id, cognito_sub, email, email_verified, status, last_synced_from_cognito_at)
