@@ -1,0 +1,285 @@
+# Frontend Strategy (MVP)
+
+## Purpose
+
+Define a maintainable, professional frontend approach for CV Match that a backend-focused developer can operate.
+
+## Stack Decision
+
+- Framework: Next.js (App Router) with TypeScript.
+- Styling: Tailwind CSS (token-based custom theme).
+- Authentication: AWS Cognito Hosted UI using Authorization Code + PKCE.
+- Session strategy: secure HTTP-only cookies in frontend server routes.
+- Data access: frontend calls API Gateway endpoints only.
+
+This keeps credential handling and OAuth lifecycle delegated to AWS while keeping the frontend operationally simple.
+
+## Implemented in Repository
+
+Directory:
+- frontend/
+
+Core pages and routes:
+- Landing page with login CTA.
+- /profile page for authenticated profile read.
+- /api/auth/login route to start OAuth PKCE flow.
+- /api/auth/callback route to exchange code for tokens.
+- /api/auth/logout route to clear session and redirect to Cognito logout.
+
+## Visual Direction
+
+Theme goals:
+- Professional, warm, and modern.
+- Clear hierarchy for profile information.
+- Subtle gradients and elevated cards.
+
+Color tokens:
+- Primary: #0E7C86
+- Primary strong: #0B636C
+- Accent: #F05D5E
+- Background: #F7F5F2
+- Foreground: #1F2A37
+- Muted: #5B6778
+
+Typography:
+- Headings: Sora.
+- Body: Source Sans 3.
+
+## Environment Variables
+
+Use frontend/.env.local based on frontend/.env.example.
+
+Required Cognito variables:
+- API_GATEWAY_BASE_URL: API Gateway base URL (for profile read)
+- AUTH_AUTHORIZATION_ENDPOINT: Cognito /oauth2/authorize endpoint
+- AUTH_TOKEN_ENDPOINT: Cognito /oauth2/token endpoint
+- AUTH_LOGOUT_ENDPOINT: Cognito /logout endpoint
+- AUTH_LOGOUT_REDIRECT_PARAM: always "logout_uri" for Cognito
+- AUTH_CLIENT_ID: Your Cognito App Client ID
+- AUTH_REDIRECT_URI: http://localhost:3000/api/auth/callback (must match Cognito config)
+- AUTH_LOGOUT_REDIRECT_URI: http://localhost:3000 (must match Cognito config)
+- AUTH_SCOPES: openid email profile
+
+## Local Run
+
+From frontend/:
+
+1. npm install
+2. Copy .env.example to .env.local and fill Cognito values
+3. npm run dev
+4. Open http://localhost:3000
+5. Click login to start Cognito Hosted UI flow
+
+## Security Notes
+
+- Keep access/id tokens in HTTP-only cookies, not localStorage.
+- Use HTTPS in non-local environments.
+- Cognito callback URLs must exactly match frontend deployment domain in all environments.
+- Frontend should never call internal microservice endpoints directly.
+- API Gateway validates Cognito tokens and maps sub to internal user_id.
+
+## Next Iterations
+
+1. Add profile edit form with validation and optimistic UI.
+2. Add CV upload page with progress state.
+3. Add protected route middleware for authenticated pages.
+4. Add frontend CI checks: lint + build + smoke test.
+
+## Profile Form Spec (MVP)
+
+Use one authenticated profile page with section cards instead of one long flat form.
+
+### Page Structure
+
+Order on page:
+1. Profile header
+2. CV upload card
+3. Basic info card
+4. Location card
+5. Skills card
+6. Preferred roles card
+7. Experience card
+8. Education card
+9. Certifications card
+
+Each card should:
+- Show its own save state.
+- Validate only its own fields.
+- Be independently editable without blocking the rest of the page.
+
+### Section Design
+
+**Profile header**
+- Show full name, email, and a small completion indicator.
+- Email should be read-only if it is sourced from Cognito.
+
+**CV upload card**
+- Show current CV status: no CV, uploaded, processing, failed.
+- Primary action: upload or replace CV.
+- After successful upload, refresh profile data and show any parsed suggestions as draft values in the relevant sections.
+
+**Basic info card**
+- Fields:
+	- `full_name`: text input, required
+	- `headline`: text input, optional
+	- `summary`: textarea, optional
+- UX:
+	- Save button inside the card.
+	- Inline validation below each field.
+
+**Location card**
+- Fields:
+	- `country_code`: searchable select, required
+	- `region_id`: searchable select, enabled after country is selected
+	- `city_id`: searchable select, enabled after country or region is selected
+- UX:
+	- Do not use free-text location inputs in the main form.
+	- If imported CV data cannot be normalized, show it as a review hint, not as the final saved value.
+
+**Skills card**
+- Fields:
+	- `skills`: multi-value chip input backed by catalog suggestions
+	- optional `proficiency_level` per skill only if needed in MVP
+- UX:
+	- Typeahead should suggest normalized skills from `skills` table.
+	- User can add and remove chips quickly.
+	- Prevent duplicate skills.
+
+**Preferred roles card**
+- Fields:
+	- `preferred_roles`: multi-value chip input with suggestions
+- UX:
+	- Use normalized suggestions where possible.
+	- Keep manual entry only as a fallback if taxonomy is not ready yet.
+
+**Experience card**
+- UI pattern:
+	- Repeatable list of experience items.
+	- Each item opens in a compact editable card or drawer.
+- Fields per item:
+	- `position`: required
+	- `company`: required
+	- `start_date`: month/year
+	- `end_date`: month/year
+	- `is_current`: checkbox
+	- `responsibilities`: multiline textarea with one bullet per line
+- UX:
+	- If `is_current` is checked, disable `end_date`.
+	- Support add, edit, delete, and reorder.
+
+**Education card**
+- UI pattern:
+	- Repeatable list of education items.
+- Fields per item:
+	- `degree`: required
+	- `institution`: required
+	- `start_date`: month/year, optional
+	- `end_date`: month/year, optional
+	- `status`: select (`completed`, `in_progress`, `dropped`)
+- UX:
+	- Support add, edit, delete, and reorder.
+
+**Certifications card**
+- UI pattern:
+	- Repeatable list of certification items.
+- Fields per item:
+	- `name`: required
+	- `issuer`: required
+	- `issued_at`: month/year, optional
+	- `expires_at`: month/year, optional
+- UX:
+	- Support add, edit, and delete.
+
+### Save Behavior
+
+Use mixed save behavior:
+- Basic info and location: explicit save button per card.
+- Skills and preferred roles: save on card submit.
+- Experience, education, and certifications: save the whole section after add/edit/delete actions.
+
+Do not use one global page submit button for the entire profile.
+
+### Validation Rules
+
+Minimum MVP validation:
+- `full_name` is required.
+- `country_code` is required.
+- `position`, `company` required for experience items.
+- `degree`, `institution` required for education items.
+- `name`, `issuer` required for certification items.
+- End date cannot be earlier than start date.
+- Duplicate skills should be rejected.
+
+### CV Prefill Behavior
+
+When CV parsing returns structured data:
+- Pre-populate empty fields automatically as draft UI state.
+- For fields already edited by the user, show a review prompt instead of silently overwriting values.
+- Highlight suggested values until the user saves or dismisses them.
+
+### Mobile Behavior
+
+- Stack cards vertically.
+- Keep one primary action per card.
+- Avoid large modal flows for every edit.
+- Use inline expandable sections for repeatable lists when possible.
+
+### Recommended Frontend Data Contract Shape
+
+The page should work best if `GET /profile` returns one aggregated payload shaped for the UI, for example:
+
+```ts
+type ProfilePageResponse = {
+	user: {
+		email: string;
+	};
+	profile: {
+		fullName: string | null;
+		headline: string | null;
+		summary: string | null;
+		countryCode: string | null;
+		regionId: string | null;
+		cityId: string | null;
+		yearsExperience: number | null;
+		workModePreference: 'remote' | 'hybrid' | 'onsite' | 'flexible' | null;
+	};
+	cv: {
+		status: 'none' | 'uploaded' | 'processing' | 'failed';
+		filename: string | null;
+		uploadedAt: string | null;
+	};
+	skills: Array<{
+		skillId: string;
+		label: string;
+		proficiencyLevel: string | null;
+	}>;
+	preferredRoles: Array<{
+		id: string;
+		roleName: string;
+	}>;
+	experience: Array<{
+		id: string;
+		position: string;
+		company: string;
+		startDate: string | null;
+		endDate: string | null;
+		isCurrent: boolean;
+		responsibilities: string[];
+	}>;
+	education: Array<{
+		id: string;
+		degree: string;
+		institution: string;
+		startDate: string | null;
+		endDate: string | null;
+		status: 'completed' | 'in_progress' | 'dropped' | null;
+	}>;
+	certifications: Array<{
+		id: string;
+		name: string;
+		issuer: string;
+		issuedAt: string | null;
+		expiresAt: string | null;
+	}>;
+};
+```
