@@ -1,0 +1,445 @@
+Project cv_match {
+  database_type: "PostgreSQL"
+  Note: "Schema source for ER diagrams with phased rollout: Phase 1 core, Phase 2 matching features, Phase 3 feedback learning"
+}
+
+Table users [headercolor: #4CAF50] {
+  id uuid [pk]
+  cognito_sub varchar [not null, unique]
+  email varchar
+  email_verified boolean [not null, default: false]
+  status varchar [not null, default: 'active']
+  last_synced_from_cognito_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table cv_upload_records [headercolor: #4CAF50] {
+  id uuid [pk]
+  user_id uuid [not null]
+  original_filename varchar [not null]
+  storage_key varchar [not null]
+  content_type varchar [not null]
+  parse_status varchar [not null]
+  parse_error_code varchar
+  uploaded_at timestamptz [not null, default: `now()`]
+  parsed_at timestamptz
+  is_active boolean [not null, default: false]
+}
+
+Table profiles [headercolor: #4CAF50] {
+  user_id uuid [pk]
+  full_name varchar [not null]
+  headline varchar
+  summary text
+  country_code varchar(2)
+  region_id uuid
+  city_id uuid
+  raw_region varchar
+  raw_city varchar
+  years_experience int
+  work_mode_preference varchar
+  latest_source_cv_id uuid
+  last_auto_filled_at timestamptz
+  last_manual_edit_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table countries [headercolor: #4CAF50] {
+  code varchar(2) [pk]
+  name varchar [not null]
+  normalized_name varchar [not null, unique]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table regions [headercolor: #4CAF50] {
+  id uuid [pk]
+  country_code varchar(2) [not null]
+  name varchar [not null]
+  normalized_name varchar [not null]
+  code varchar
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (country_code, normalized_name) [unique]
+  }
+}
+
+Table cities [headercolor: #4CAF50] {
+  id uuid [pk]
+  country_code varchar(2) [not null]
+  region_id uuid
+  name varchar [not null]
+  normalized_name varchar [not null]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (country_code, region_id, normalized_name) [unique]
+  }
+}
+
+Table skills [headercolor: #4CAF50] {
+  id uuid [pk]
+  skill_name varchar [not null]
+  normalized_skill varchar [not null]
+  category varchar
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (normalized_skill) [unique]
+  }
+}
+
+Table profile_skills [headercolor: #4CAF50] {
+  id uuid [pk]
+  profile_id uuid [not null]
+  skill_id uuid [not null]
+  proficiency_level varchar
+  sort_order int [not null, default: 0]
+
+  indexes {
+    (profile_id, skill_id) [unique]
+  }
+}
+
+Table profile_preferred_roles [headercolor: #4CAF50] {
+  id uuid [pk]
+  profile_id uuid [not null]
+  role_name varchar [not null]
+  normalized_role varchar [not null]
+  sort_order int [not null, default: 0]
+}
+
+Table profile_experience [headercolor: #4CAF50] {
+  id uuid [pk]
+  profile_id uuid [not null]
+  position varchar [not null]
+  company varchar [not null]
+  start_date date [not null]
+  end_date date
+  is_current boolean [not null, default: false]
+  responsibilities jsonb
+  sort_order int [not null, default: 0]
+}
+
+Table profile_education [headercolor: #4CAF50] {
+  id uuid [pk]
+  profile_id uuid [not null]
+  degree varchar [not null]
+  institution varchar [not null]
+  start_date date
+  end_date date
+  status varchar
+  sort_order int [not null, default: 0]
+}
+
+Table profile_certifications [headercolor: #4CAF50] {
+  id uuid [pk]
+  profile_id uuid [not null]
+  name varchar [not null]
+  issuer varchar [not null]
+  issued_at date
+  expires_at date
+}
+
+Table job_offers [headercolor: #4CAF50] {
+  id uuid [pk]
+  external_source varchar [not null]
+  external_job_id varchar [not null]
+  title varchar [not null]
+  company varchar [not null]
+  country_code varchar(2)
+  region_id uuid
+  city_id uuid
+  raw_location varchar
+  work_mode varchar
+  employment_type varchar
+  seniority varchar
+  salary_min numeric
+  salary_max numeric
+  salary_currency varchar(3)
+  posted_at timestamptz
+  apply_url varchar
+  source_url varchar
+  status varchar [not null, default: 'active']
+
+  indexes {
+    (external_source, external_job_id) [unique]
+  }
+}
+
+Table job_offer_skills [headercolor: #2196F3] {
+  id uuid [pk]
+  job_offer_id uuid [not null]
+  skill_id uuid [not null]
+  required_level varchar
+  weight numeric
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (job_offer_id, skill_id) [unique]
+  }
+}
+
+Table matches [headercolor: #2196F3] {
+  id uuid [pk]
+  user_id uuid [not null]
+  profile_id uuid [not null]
+  job_offer_id uuid [not null]
+  candidate_snapshot_id uuid
+  job_snapshot_id uuid
+  scoring_version varchar [not null, default: 'v1']
+  score_total numeric [not null]
+  score_breakdown jsonb
+  ranked_position int
+  match_status varchar [not null, default: 'scored']
+  matched_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  rank_reason_summary text
+
+  indexes {
+    (user_id, job_offer_id) [unique]
+  }
+}
+
+Table match_explanations [headercolor: #2196F3] {
+  id uuid [pk]
+  match_id uuid [not null]
+  factor_name varchar [not null]
+  factor_score numeric [not null]
+  explanation_text text
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table skill_aliases [headercolor: #2196F3] {
+  id uuid [pk]
+  skill_id uuid [not null]
+  alias varchar [not null]
+  normalized_alias varchar [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (normalized_alias) [unique]
+  }
+}
+
+Table candidate_feature_snapshots [headercolor: #2196F3] {
+  id uuid [pk]
+  user_id uuid [not null]
+  profile_id uuid [not null]
+  source_version varchar [not null]
+  seniority_level varchar
+  work_mode_vector jsonb
+  language_vector jsonb
+  feature_payload jsonb
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table candidate_skill_features [headercolor: #2196F3] {
+  id uuid [pk]
+  snapshot_id uuid [not null]
+  skill_id uuid [not null]
+  weight numeric [not null]
+  source_confidence numeric
+
+  indexes {
+    (snapshot_id, skill_id) [unique]
+  }
+}
+
+Table job_feature_snapshots [headercolor: #2196F3] {
+  id uuid [pk]
+  job_offer_id uuid [not null]
+  source_version varchar [not null]
+  seniority_level varchar
+  work_mode_vector jsonb
+  language_vector jsonb
+  feature_payload jsonb
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table job_skill_features [headercolor: #2196F3] {
+  id uuid [pk]
+  snapshot_id uuid [not null]
+  skill_id uuid [not null]
+  weight numeric [not null]
+
+  indexes {
+    (snapshot_id, skill_id) [unique]
+  }
+}
+
+Table candidate_embeddings [headercolor: #2196F3] {
+  id uuid [pk]
+  snapshot_id uuid [not null]
+  model_name varchar [not null]
+  embedding jsonb [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (snapshot_id, model_name) [unique]
+  }
+}
+
+Table job_embeddings [headercolor: #2196F3] {
+  id uuid [pk]
+  snapshot_id uuid [not null]
+  model_name varchar [not null]
+  embedding jsonb [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (snapshot_id, model_name) [unique]
+  }
+}
+
+Table match_feedback [headercolor: #FF9800] {
+  id uuid [pk]
+  match_id uuid [not null]
+  user_id uuid [not null]
+  action varchar [not null]
+  metadata jsonb
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table application_outcomes [headercolor: #FF9800] {
+  id uuid [pk]
+  match_id uuid [not null, unique]
+  stage varchar [not null]
+  source varchar
+  notes text
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table cv_optimization_records [headercolor: #4CAF50] {
+  id uuid [pk]
+  match_id uuid [not null, unique]
+  user_id uuid [not null]
+  storage_key varchar [not null]
+  status varchar [not null]
+  error_code varchar
+  generated_at timestamptz
+  expires_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table notification_preferences [headercolor: #4CAF50] {
+  user_id uuid [pk]
+  email_enabled boolean [not null, default: true]
+  push_enabled boolean [not null, default: false]
+  whatsapp_enabled boolean [not null, default: false]
+  telegram_enabled boolean [not null, default: false]
+  sms_enabled boolean [not null, default: false]
+  frequency varchar [not null, default: 'daily']
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table notification_deliveries [headercolor: #4CAF50] {
+  id uuid [pk]
+  user_id uuid [not null]
+  channel varchar [not null]
+  template_name varchar [not null]
+  status varchar [not null]
+  provider_message_id varchar
+  sent_at timestamptz
+  delivered_at timestamptz
+  failed_at timestamptz
+  error_code varchar
+}
+
+Ref: cv_upload_records.user_id > users.id
+Ref: profiles.user_id - users.id
+Ref: profiles.country_code > countries.code
+Ref: profiles.region_id > regions.id
+Ref: profiles.city_id > cities.id
+Ref: profiles.latest_source_cv_id > cv_upload_records.id
+
+Ref: regions.country_code > countries.code
+Ref: cities.country_code > countries.code
+Ref: cities.region_id > regions.id
+
+Ref: profile_skills.profile_id > profiles.user_id
+Ref: profile_skills.skill_id > skills.id
+Ref: profile_preferred_roles.profile_id > profiles.user_id
+Ref: profile_experience.profile_id > profiles.user_id
+Ref: profile_education.profile_id > profiles.user_id
+Ref: profile_certifications.profile_id > profiles.user_id
+Ref: skill_aliases.skill_id > skills.id
+
+Ref: matches.user_id > users.id
+Ref: matches.profile_id > profiles.user_id
+Ref: matches.job_offer_id > job_offers.id
+Ref: matches.candidate_snapshot_id > candidate_feature_snapshots.id
+Ref: matches.job_snapshot_id > job_feature_snapshots.id
+Ref: match_explanations.match_id > matches.id
+
+Ref: job_offer_skills.job_offer_id > job_offers.id
+Ref: job_offer_skills.skill_id > skills.id
+Ref: job_offers.country_code > countries.code
+Ref: job_offers.region_id > regions.id
+Ref: job_offers.city_id > cities.id
+
+Ref: candidate_feature_snapshots.user_id > users.id
+Ref: candidate_feature_snapshots.profile_id > profiles.user_id
+Ref: candidate_skill_features.snapshot_id > candidate_feature_snapshots.id
+Ref: candidate_skill_features.skill_id > skills.id
+
+Ref: job_feature_snapshots.job_offer_id > job_offers.id
+Ref: job_skill_features.snapshot_id > job_feature_snapshots.id
+Ref: job_skill_features.skill_id > skills.id
+
+Ref: candidate_embeddings.snapshot_id > candidate_feature_snapshots.id
+Ref: job_embeddings.snapshot_id > job_feature_snapshots.id
+
+Ref: cv_optimization_records.match_id > matches.id
+Ref: cv_optimization_records.user_id > users.id
+
+Ref: notification_preferences.user_id - users.id
+Ref: notification_deliveries.user_id > users.id
+
+Ref: match_feedback.match_id > matches.id
+Ref: match_feedback.user_id > users.id
+Ref: application_outcomes.match_id > matches.id
+
+TableGroup phase_1_core {
+  users
+  cv_upload_records
+  profiles
+  countries
+  regions
+  cities
+  skills
+  profile_skills
+  profile_preferred_roles
+  profile_experience
+  profile_education
+  profile_certifications
+  job_offers
+  cv_optimization_records
+  notification_preferences
+  notification_deliveries
+}
+
+TableGroup phase_2_matching_features {
+  skill_aliases
+  job_offer_skills
+  candidate_feature_snapshots
+  candidate_skill_features
+  job_feature_snapshots
+  job_skill_features
+  candidate_embeddings
+  job_embeddings
+  matches
+  match_explanations
+}
+
+TableGroup phase_3_feedback_learning {
+  match_feedback
+  application_outcomes
+}
