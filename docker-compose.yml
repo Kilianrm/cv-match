@@ -1,0 +1,53 @@
+services:
+  gateway:
+    build:
+      context: ./services/gateway
+      dockerfile: docker/Dockerfile
+    image: gateway:local
+    container_name: gateway
+    env_file:
+      - ./services/gateway/.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - profile-service
+
+  profile-service:
+    build:
+      context: ./services/profile-service
+      dockerfile: docker/Dockerfile
+    image: profile-service:local
+    container_name: profile-service
+    env_file:
+      - ./services/profile-service/.env
+    depends_on:
+      - postgres
+      - localstack
+    command: ["uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+
+  postgres:
+    image: postgres:16
+    container_name: profile-postgres
+    environment:
+      POSTGRES_DB: profile_db
+      POSTGRES_USER: profile_user
+      POSTGRES_PASSWORD: profile_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  localstack:
+    image: localstack/localstack:3.5
+    container_name: profile-localstack
+    environment:
+      - SERVICES=s3
+      - AWS_DEFAULT_REGION=us-east-1
+    ports:
+      - "4566:4566"
+    volumes:
+      - localstack_data:/var/lib/localstack
+
+volumes:
+  pgdata:
+  localstack_data:
