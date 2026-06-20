@@ -68,15 +68,28 @@ def _authenticate(request: Request) -> TokenClaims:
 
 
 async def _resolve_user_id(claims: TokenClaims) -> str:
-    """Sync user with profile-service and return the internal user_id."""
+    """Sync user with profile-service and return the internal user_id.
+
+    On first login (created=True) also bootstraps an empty profile row so that
+    GET /profile never returns 404 for a freshly registered user.
+    """
     resp = await _profile_client().post(
         "/internal/users/sync-from-jwt",
         json={"issuer": claims.issuer, "sub": claims.sub, "email": claims.email},
     )
     if resp.status_code != 200:
-        logger.error("sync-from-jwt failed: %s ? %s", resp.status_code, resp.text)
+        logger.error("sync-from-jwt failed: %s %s", resp.status_code, resp.text)
         raise HTTPException(status_code=502, detail="Failed to resolve user identity")
-    return resp.json()["internal_user_id"]
+    data = resp.json()
+    user_id: str = data["internal_user_id"]
+
+    if data.get("created", False):
+        await _profile_client().post(
+            f"/internal/users/{user_id}/profile",
+            json={"full_name": claims.email or "New User"},
+        )
+
+    return user_id
 
 
 # ---------------------------------------------------------------------------
@@ -144,11 +157,188 @@ async def update_profile(request: Request) -> Any:
     return resp.json()
 
 
+@app.post("/api/v1/profile/skills", summary="Add skill")
+async def add_skill(request: Request) -> Any:
+    claims = _authenticate(request)
+    user_id = await _resolve_user_id(claims)
+    body = await request.json()
+    resp = await _profile_client().post(f"/internal/users/{user_id}/skills", json=body)
+    if resp.status_code in (404, 409, 422):
+        raise HTTPException(status_code=resp.status_code, detail=resp.json().get("detail", "Skill operation failed"))
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to add skill")
+    return JSONResponse(status_code=201, content=resp.json())
+
+
+@app.delete("/api/v1/profile/skills/{skill_id}", summary="Remove skill")
+async def remove_skill(request: Request, skill_id: str) -> Any:
+    claims = _authenticate(request)
+    user_id = await _resolve_user_id(claims)
+    resp = await _profile_client().delete(f"/internal/users/{user_id}/skills/{skill_id}")
+    if resp.status_code == 404:
+        raise HTTPException(status_code=404, detail=resp.json().get("detail", "Skill not found"))
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to remove skill")
+    return JSONResponse(status_code=204, content=None)
+
+
+@app.post("/api/v1/profile/preferred-roles", summary="Add preferred role")
+async def add_preferred_role(request: Request) -> Any:
+    claims = _authenticate(request)
+    user_id = await _resolve_user_id(claims)
+    body = await request.json()
+    resp = await _profile_client().post(f"/internal/users/{user_id}/preferred-roles", json=body)
+    if resp.status_code in (404, 409, 422):
+        raise HTTPException(status_code=resp.status_code, detail=resp.json().get("detail", "Preferred role operation failed"))
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to add preferred role")
+    return JSONResponse(status_code=201, content=resp.json())
+
+
+@app.put("/api/v1/profile/preferred-roles/{role_id}", summary="Update preferred role")
+async def update_preferred_role(request: Request, role_id: str) -> Any:
+    claims = _authenticate(request)
+    user_id = await _resolve_user_id(claims)
+    body = await request.json()
+    resp = await _profile_client().put(f"/internal/users/{user_id}/preferred-roles/{role_id}", json=body)
+    if resp.status_code in (404, 422):
+        raise HTTPException(status_code=resp.status_code, detail=resp.json().get("detail", "Preferred role operation failed"))
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to update preferred role")
+    return resp.json()
+
+
+@app.delete("/api/v1/profile/preferred-roles/{role_id}", summary="Delete preferred role")
+async def delete_preferred_role(request: Request, role_id: str) -> Any:
+    claims = _authenticate(request)
+    user_id = await _resolve_user_id(claims)
+    resp = await _profile_client().delete(f"/internal/users/{user_id}/preferred-roles/{role_id}")
+    if resp.status_code == 404:
+        raise HTTPException(status_code=404, detail=resp.json().get("detail", "Preferred role not found"))
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to delete preferred role")
+    return JSONResponse(status_code=204, content=None)
+
+
+@app.post("/api/v1/profile/experience", summary="Add experience")
+async def add_experience(request: Request) -> Any:
+    claims = _authenticate(request)
+    user_id = await _resolve_user_id(claims)
+    body = await request.json()
+    resp = await _profile_client().post(f"/internal/users/{user_id}/experience", json=body)
+    if resp.status_code in (404, 422):
+        raise HTTPException(status_code=resp.status_code, detail=resp.json().get("detail", "Experience operation failed"))
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to add experience")
+    return JSONResponse(status_code=201, content=resp.json())
+
+
+@app.put("/api/v1/profile/experience/{experience_id}", summary="Update experience")
+async def update_experience(request: Request, experience_id: str) -> Any:
+    claims = _authenticate(request)
+    user_id = await _resolve_user_id(claims)
+    body = await request.json()
+    resp = await _profile_client().put(f"/internal/users/{user_id}/experience/{experience_id}", json=body)
+    if resp.status_code in (404, 422):
+        raise HTTPException(status_code=resp.status_code, detail=resp.json().get("detail", "Experience operation failed"))
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to update experience")
+    return resp.json()
+
+
+@app.delete("/api/v1/profile/experience/{experience_id}", summary="Delete experience")
+async def delete_experience(request: Request, experience_id: str) -> Any:
+    claims = _authenticate(request)
+    user_id = await _resolve_user_id(claims)
+    resp = await _profile_client().delete(f"/internal/users/{user_id}/experience/{experience_id}")
+    if resp.status_code == 404:
+        raise HTTPException(status_code=404, detail=resp.json().get("detail", "Experience item not found"))
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to delete experience")
+    return JSONResponse(status_code=204, content=None)
+
+
+@app.post("/api/v1/profile/education", summary="Add education")
+async def add_education(request: Request) -> Any:
+    claims = _authenticate(request)
+    user_id = await _resolve_user_id(claims)
+    body = await request.json()
+    resp = await _profile_client().post(f"/internal/users/{user_id}/education", json=body)
+    if resp.status_code in (404, 422):
+        raise HTTPException(status_code=resp.status_code, detail=resp.json().get("detail", "Education operation failed"))
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to add education")
+    return JSONResponse(status_code=201, content=resp.json())
+
+
+@app.put("/api/v1/profile/education/{education_id}", summary="Update education")
+async def update_education(request: Request, education_id: str) -> Any:
+    claims = _authenticate(request)
+    user_id = await _resolve_user_id(claims)
+    body = await request.json()
+    resp = await _profile_client().put(f"/internal/users/{user_id}/education/{education_id}", json=body)
+    if resp.status_code in (404, 422):
+        raise HTTPException(status_code=resp.status_code, detail=resp.json().get("detail", "Education operation failed"))
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to update education")
+    return resp.json()
+
+
+@app.delete("/api/v1/profile/education/{education_id}", summary="Delete education")
+async def delete_education(request: Request, education_id: str) -> Any:
+    claims = _authenticate(request)
+    user_id = await _resolve_user_id(claims)
+    resp = await _profile_client().delete(f"/internal/users/{user_id}/education/{education_id}")
+    if resp.status_code == 404:
+        raise HTTPException(status_code=404, detail=resp.json().get("detail", "Education item not found"))
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to delete education")
+    return JSONResponse(status_code=204, content=None)
+
+
+@app.post("/api/v1/profile/certifications", summary="Add certification")
+async def add_certification(request: Request) -> Any:
+    claims = _authenticate(request)
+    user_id = await _resolve_user_id(claims)
+    body = await request.json()
+    resp = await _profile_client().post(f"/internal/users/{user_id}/certifications", json=body)
+    if resp.status_code in (404, 422):
+        raise HTTPException(status_code=resp.status_code, detail=resp.json().get("detail", "Certification operation failed"))
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to add certification")
+    return JSONResponse(status_code=201, content=resp.json())
+
+
+@app.put("/api/v1/profile/certifications/{cert_id}", summary="Update certification")
+async def update_certification(request: Request, cert_id: str) -> Any:
+    claims = _authenticate(request)
+    user_id = await _resolve_user_id(claims)
+    body = await request.json()
+    resp = await _profile_client().put(f"/internal/users/{user_id}/certifications/{cert_id}", json=body)
+    if resp.status_code in (404, 422):
+        raise HTTPException(status_code=resp.status_code, detail=resp.json().get("detail", "Certification operation failed"))
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to update certification")
+    return resp.json()
+
+
+@app.delete("/api/v1/profile/certifications/{cert_id}", summary="Delete certification")
+async def delete_certification(request: Request, cert_id: str) -> Any:
+    claims = _authenticate(request)
+    user_id = await _resolve_user_id(claims)
+    resp = await _profile_client().delete(f"/internal/users/{user_id}/certifications/{cert_id}")
+    if resp.status_code == 404:
+        raise HTTPException(status_code=404, detail=resp.json().get("detail", "Certification item not found"))
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to delete certification")
+    return JSONResponse(status_code=204, content=None)
+
+
 # ---------------------------------------------------------------------------
 # CV
 # ---------------------------------------------------------------------------
 
-@app.post("/api/v1/cv/upload", summary="Upload CV for authenticated user")
+@app.post("/api/v1/profile/cv", summary="Upload CV for authenticated user")
 async def upload_cv(request: Request, file: UploadFile = File(...)) -> Any:
     claims = _authenticate(request)
     user_id = await _resolve_user_id(claims)
@@ -165,6 +355,30 @@ async def upload_cv(request: Request, file: UploadFile = File(...)) -> Any:
     if resp.status_code != 200:
         raise HTTPException(status_code=502, detail="CV upload failed")
     return JSONResponse(status_code=202, content=resp.json())
+
+
+@app.get("/api/v1/profile/cv", summary="Get authenticated user's active CV")
+async def get_cv(request: Request) -> Any:
+    claims = _authenticate(request)
+    user_id = await _resolve_user_id(claims)
+    resp = await _profile_client().get(f"/internal/users/{user_id}/cv")
+    if resp.status_code == 404:
+        return JSONResponse(status_code=200, content={"cv": None})
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to retrieve CV")
+    return resp.json()
+
+
+@app.delete("/api/v1/profile/cv", summary="Delete authenticated user's active CV")
+async def delete_cv(request: Request) -> Any:
+    claims = _authenticate(request)
+    user_id = await _resolve_user_id(claims)
+    resp = await _profile_client().delete(f"/internal/users/{user_id}/cv")
+    if resp.status_code == 404:
+        return JSONResponse(status_code=204, content=None)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to delete CV")
+    return JSONResponse(status_code=204, content=None)
 
 
 # ---------------------------------------------------------------------------
@@ -205,4 +419,45 @@ async def list_cities(
     resp = await _profile_client().get("/internal/locations/cities", params=params)
     if resp.status_code != 200:
         raise HTTPException(status_code=502, detail="Failed to retrieve cities")
+    return resp.json()
+
+
+# ---------------------------------------------------------------------------
+# Catalogs (Public)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/v1/catalogs/skills", summary="List skill catalog")
+async def list_skill_catalog(q: str | None = None, category: str | None = None, limit: int = 200) -> Any:
+    params: dict[str, Any] = {"limit": limit}
+    if q:
+        params["q"] = q
+    if category:
+        params["category"] = category
+    resp = await _profile_client().get("/internal/catalogs/skills", params=params)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to retrieve skills catalog")
+    return resp.json()
+
+
+@app.get("/api/v1/catalogs/roles", summary="List role catalog")
+async def list_role_catalog(q: str | None = None, category: str | None = None, limit: int = 200) -> Any:
+    params: dict[str, Any] = {"limit": limit}
+    if q:
+        params["q"] = q
+    if category:
+        params["category"] = category
+    resp = await _profile_client().get("/internal/catalogs/roles", params=params)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to retrieve roles catalog")
+    return resp.json()
+
+
+@app.get("/api/v1/catalogs/degree-types", summary="List degree type catalog")
+async def list_degree_type_catalog(q: str | None = None, limit: int = 200) -> Any:
+    params: dict[str, Any] = {"limit": limit}
+    if q:
+        params["q"] = q
+    resp = await _profile_client().get("/internal/catalogs/degree-types", params=params)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to retrieve degree type catalog")
     return resp.json()
