@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle, AlertCircle, Clock, TrendingUp } from "lucide-react";
+import { User } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
 
 interface ProfileData {
   user_id: string;
@@ -29,26 +31,13 @@ export default function Dashboard() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_GATEWAY_BASE_URL || "http://localhost:8080";
-        const profileRes = await fetch(`${baseUrl}/api/v1/profile`, {
-          credentials: "include",
-        });
-
-        if (profileRes.ok) {
-          const data = await profileRes.json();
-          setProfile(data);
-        } else if (profileRes.status === 401) {
-          setError("Session expired. Please log in again.");
-        } else {
-          setError("Failed to load profile");
-        }
+        const data = await apiClient("/api/v1/profile");
+        setProfile(data);
 
         // TODO: fetch CV status from API when endpoint is ready
-        // const cvRes = await fetch(`${baseUrl}/api/v1/cv/current`, {
-        //   credentials: "include",
-        // });
-        // if (cvRes.ok) {
-        //   setCvStatus(await cvRes.json());
+        // const cvStatus = await apiClient("/api/v1/cv/current");
+        // if (cvStatus) {
+        //   setCvStatus(cvStatus);
         // }
       } catch (err) {
         setError(err instanceof Error ? err.message : "An error occurred");
@@ -139,7 +128,7 @@ export default function Dashboard() {
               </p>
             )}
             <Link
-              href="/cv-upload"
+              href="/profile"
               className="inline-block mt-4 text-accent hover:text-accent/80 font-medium text-sm"
             >
               {cvStatus ? "Update CV" : "Upload CV"} ?
@@ -173,7 +162,7 @@ export default function Dashboard() {
         <h2 className="text-lg font-semibold text-foreground mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Link
-            href="/cv-upload"
+            href="/profile"
             className="p-4 border border-primary/10 rounded-lg hover:bg-primary/5 transition-colors"
           >
             <p className="font-semibold text-foreground">Upload or Update CV</p>
@@ -195,5 +184,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
-import { User } from "lucide-react";

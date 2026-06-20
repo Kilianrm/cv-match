@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileUp, Briefcase, Zap, User, LayoutDashboard, Bell } from "lucide-react";
+import { Briefcase, Zap, User, LayoutDashboard, Bell } from "lucide-react";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -13,7 +13,6 @@ export default function Sidebar() {
   const links = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/profile", label: "Profile", icon: User },
-    { href: "/cv-upload", label: "Upload CV", icon: FileUp },
     { href: "/matches", label: "Job Matches", icon: Briefcase },
     { href: "/optimization", label: "Optimize CV", icon: Zap },
     { href: "/notifications", label: "Notifications", icon: Bell },

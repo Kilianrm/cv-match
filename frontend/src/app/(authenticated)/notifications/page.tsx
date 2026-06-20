@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Bell, Save } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
+
+const notificationsApiEnabled = process.env.NEXT_PUBLIC_NOTIFICATIONS_API === "true";
 
 type NotificationPreferences = {
   daily_digest_enabled: boolean;
@@ -22,18 +25,15 @@ export default function NotificationsPage() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!notificationsApiEnabled) {
+      setLoading(false);
+      return;
+    }
+
     async function loadPreferences() {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_GATEWAY_BASE_URL || "http://localhost:8080";
-        const response = await fetch(`${baseUrl}/api/v1/notifications/preferences`, {
-          method: "GET",
-          credentials: "include",
-        });
-
-        if (response.ok) {
-          const payload = (await response.json()) as Partial<NotificationPreferences>;
-          setPreferences({ ...defaultPreferences, ...payload });
-        }
+        const payload = await apiClient("/api/v1/notifications/preferences");
+        setPreferences({ ...defaultPreferences, ...payload });
       } catch {
         // Keep default values if backend endpoint is not ready yet.
       } finally {
@@ -45,23 +45,19 @@ export default function NotificationsPage() {
   }, []);
 
   async function savePreferences() {
+    if (!notificationsApiEnabled) {
+      setMessage("Notifications backend is not enabled yet.");
+      return;
+    }
+
     setSaving(true);
     setMessage(null);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_GATEWAY_BASE_URL || "http://localhost:8080";
-      const response = await fetch(`${baseUrl}/api/v1/notifications/preferences`, {
+      await apiClient("/api/v1/notifications/preferences", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
         body: JSON.stringify(preferences),
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to save preferences");
-      }
 
       setMessage("Notification preferences saved.");
     } catch {

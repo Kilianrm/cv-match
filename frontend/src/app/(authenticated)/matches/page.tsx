@@ -75,7 +75,7 @@ export default function MatchesPage() {
             profile.
           </p>
           <a
-            href="/cv-upload"
+            href="/profile"
             className="inline-block px-6 py-3 bg-primary text-background rounded-lg font-semibold hover:bg-primary/90 transition-colors"
           >
             Upload CV Now
