@@ -9,7 +9,7 @@ flowchart TB
   EB[Scheduler]
   NOTE1[All cross-service references use UUIDs: user_id, cv_id]
 
-  API -- POST /internal/cv/upload (user_id, cv_file) --> PROFILE[Profile Service]
+  API -- POST /internal/users/{user_id}/cv (cv_file) --> PROFILE[Profile Service]
   PROFILE -. upsert_cv (user_id, cv_id) .-> S3[(CV File Storage)]
   API -- POST /internal/users/sync-from-jwt --> PROFILE
 

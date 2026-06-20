@@ -21,10 +21,19 @@ Directory:
 
 Core pages and routes:
 - Landing page with login CTA.
-- /profile page for authenticated profile read.
+- /(authenticated)/dashboard page.
+- /(authenticated)/profile page for profile read and edit.
+- /(authenticated)/matches page.
+- /(authenticated)/optimization page.
+- /(authenticated)/notifications page (feature-flag fallback when backend is not enabled).
 - /api/auth/login route to start OAuth PKCE flow.
 - /api/auth/callback route to exchange code for tokens.
 - /api/auth/logout route to clear session and redirect to Cognito logout.
+- /api/v1/[...path] route to proxy authenticated frontend requests to gateway `/api/v1/*`.
+
+Notes:
+- Standalone `/cv-upload` page was removed; CV upload/delete is handled inside `/profile`.
+- Frontend API calls use `/api/v1/...` syntax and do not use `/api/gateway/...` paths.
 
 ## Visual Direction
 
@@ -50,7 +59,7 @@ Typography:
 Use frontend/.env.local based on frontend/.env.example.
 
 Required Cognito variables:
-- API_GATEWAY_BASE_URL: API Gateway base URL (for profile read)
+- API_GATEWAY_BASE_URL: API Gateway base URL used by the frontend `/api/v1` proxy route
 - AUTH_AUTHORIZATION_ENDPOINT: Cognito /oauth2/authorize endpoint
 - AUTH_TOKEN_ENDPOINT: Cognito /oauth2/token endpoint
 - AUTH_LOGOUT_ENDPOINT: Cognito /logout endpoint
@@ -59,6 +68,10 @@ Required Cognito variables:
 - AUTH_REDIRECT_URI: http://localhost:3000/api/auth/callback (must match Cognito config)
 - AUTH_LOGOUT_REDIRECT_URI: http://localhost:3000 (must match Cognito config)
 - AUTH_SCOPES: openid email profile
+
+Optional variables:
+- NEXT_PUBLIC_API_GATEWAY_BASE_URL: fallback base URL for local/dev setups
+- NEXT_PUBLIC_NOTIFICATIONS_API: `true` to enable live notifications API calls in UI
 
 ## Local Run
 
@@ -80,10 +93,10 @@ From frontend/:
 
 ## Next Iterations
 
-1. Add profile edit form with validation and optimistic UI.
-2. Add CV upload page with progress state.
+1. Wire education degree input to `/api/v1/catalogs/degree-types` suggestions/select.
+2. Enable notifications API integration by default when backend endpoints are available.
 3. Add protected route middleware for authenticated pages.
-4. Add frontend CI checks: lint + build + smoke test.
+4. Add frontend smoke/e2e coverage for profile CV upload/delete and section CRUD.
 
 ## Profile Form Spec (MVP)
 

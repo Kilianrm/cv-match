@@ -42,7 +42,7 @@ Table profiles [headercolor: #4CAF50] {
   updated_at timestamptz [not null, default: `now()`]
 }
 
-Table countries [headercolor: #4CAF50] {
+Table countries [headercolor: #F44336] {
   code varchar(2) [pk]
   name varchar [not null]
   normalized_name varchar [not null, unique]
@@ -50,7 +50,7 @@ Table countries [headercolor: #4CAF50] {
   updated_at timestamptz [not null, default: `now()`]
 }
 
-Table regions [headercolor: #4CAF50] {
+Table regions [headercolor: #F44336] {
   id uuid [pk]
   country_code varchar(2) [not null]
   name varchar [not null]
@@ -64,7 +64,7 @@ Table regions [headercolor: #4CAF50] {
   }
 }
 
-Table cities [headercolor: #4CAF50] {
+Table cities [headercolor: #F44336] {
   id uuid [pk]
   country_code varchar(2) [not null]
   region_id uuid
@@ -78,7 +78,7 @@ Table cities [headercolor: #4CAF50] {
   }
 }
 
-Table skills [headercolor: #4CAF50] {
+Table skills [headercolor: #F44336] {
   id uuid [pk]
   skill_name varchar [not null]
   normalized_skill varchar [not null]
@@ -88,6 +88,44 @@ Table skills [headercolor: #4CAF50] {
 
   indexes {
     (normalized_skill) [unique]
+  }
+}
+
+Table roles [headercolor: #F44336] {
+  id uuid [pk]
+  role_name varchar [not null]
+  normalized_role varchar [not null]
+  category varchar
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (normalized_role) [unique]
+  }
+}
+
+Table role_aliases [headercolor: #2196F3] {
+  id uuid [pk]
+  role_id uuid [not null]
+  alias varchar [not null]
+  normalized_alias varchar [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (normalized_alias) [unique]
+  }
+}
+
+Table degree_types [headercolor: #F44336] {
+  id uuid [pk]
+  degree_name varchar [not null]
+  normalized_degree varchar [not null]
+  level smallint
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (normalized_degree) [unique]
   }
 }
 
@@ -106,6 +144,7 @@ Table profile_skills [headercolor: #4CAF50] {
 Table profile_preferred_roles [headercolor: #4CAF50] {
   id uuid [pk]
   profile_id uuid [not null]
+  role_id uuid
   role_name varchar [not null]
   normalized_role varchar [not null]
   sort_order int [not null, default: 0]
@@ -126,6 +165,7 @@ Table profile_experience [headercolor: #4CAF50] {
 Table profile_education [headercolor: #4CAF50] {
   id uuid [pk]
   profile_id uuid [not null]
+  degree_type_id uuid
   degree varchar [not null]
   institution varchar [not null]
   start_date date
@@ -362,10 +402,13 @@ Ref: cities.region_id > regions.id
 Ref: profile_skills.profile_id > profiles.user_id
 Ref: profile_skills.skill_id > skills.id
 Ref: profile_preferred_roles.profile_id > profiles.user_id
+Ref: profile_preferred_roles.role_id > roles.id
 Ref: profile_experience.profile_id > profiles.user_id
 Ref: profile_education.profile_id > profiles.user_id
+Ref: profile_education.degree_type_id > degree_types.id
 Ref: profile_certifications.profile_id > profiles.user_id
 Ref: skill_aliases.skill_id > skills.id
+Ref: role_aliases.role_id > roles.id
 
 Ref: matches.user_id > users.id
 Ref: matches.profile_id > profiles.user_id
@@ -421,8 +464,18 @@ TableGroup phase_1_core {
   notification_deliveries
 }
 
+TableGroup predefined_seed_catalogs {
+  countries
+  regions
+  cities
+  skills
+  roles
+  degree_types
+}
+
 TableGroup phase_2_matching_features {
   skill_aliases
+  role_aliases
   job_offer_skills
   candidate_feature_snapshots
   candidate_skill_features

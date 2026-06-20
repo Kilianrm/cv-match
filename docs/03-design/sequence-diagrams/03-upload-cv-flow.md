@@ -17,9 +17,9 @@ sequenceDiagram
     participant QP as CV Parser Owned Queue
 
     U->>FE: Select CV file (PDF/DOCX)
-    FE->>API: POST /api/v1/cv/upload <access_token >
+    FE->>API: POST /api/v1/profile/cv <access_token>
 
-    API->>PROFILE: POST /internal/cv/upload (user_id, cv_file)
+    API->>PROFILE: POST /internal/users/{user_id}/cv (cv_file)
     PROFILE->>PROFILE: Validate PDF format and structure
     
     alt PDF Format Valid

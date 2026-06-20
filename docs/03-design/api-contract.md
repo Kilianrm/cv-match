@@ -21,9 +21,11 @@ Common endpoints:
 User registration, login, password reset and account management are provided by Cognito Hosted UI or Cognito SDKs, depending on the client implementation.
 ### API Gateway (Business APIs)
 
-- Use this host for all business endpoints (cv, profile, matches, notifications).
+- Use this host for all business endpoints.
 - Endpoint pattern: `https://<api-domain>/api/v1/{endpoint}`
 - Protected endpoints require `Authorization: Bearer <token>` (token issued by Cognito).
+- Current implementation in `gateway-service` includes: auth session, profile, CV management, locations, and catalogs.
+- Matches, optimizations, and notifications are documented as planned contracts and may not be active in this phase.
 
 
 ## Endpoint Groups
@@ -43,12 +45,12 @@ https://<cognito-domain>.auth.<region>.amazoncognito.com
 /api/v1
 |-- /auth
 |   `-- POST /auth/session
-|-- /cv
-|   |-- POST /cv/upload
-|   `-- GET /cv/current
 |-- /profile
 |   |-- GET /profile
 |   |-- PUT /profile
+|   |-- POST /profile/cv
+|   |-- GET /profile/cv
+|   |-- DELETE /profile/cv
 |   |-- POST /profile/skills
 |   |-- DELETE /profile/skills/{skill_id}
 |   |-- POST /profile/preferred-roles
@@ -67,6 +69,12 @@ https://<cognito-domain>.auth.<region>.amazoncognito.com
 |   |-- GET /locations/countries
 |   |-- GET /locations/regions
 |   `-- GET /locations/cities
+|-- /catalogs
+|   |-- GET /catalogs/skills
+|   |-- GET /catalogs/roles
+|   `-- GET /catalogs/degree-types
+|
+|  Planned (not active in this phase):
 |-- /matches
 |   |-- GET /matches
 |   |-- POST /matches/{id}/optimize-cv
@@ -107,7 +115,7 @@ Success response example:
 
 ### CV Management
 
-#### POST /cv/upload
+#### POST /profile/cv
 
 - Purpose: Upload a CV file and trigger asynchronous parsing.
 - Auth: Protected endpoint (Bearer JWT required).
@@ -136,31 +144,66 @@ Success response example:
 ```json
 {
 	"status": "accepted",
-	"cv_id": "c1",
-	"job_id": "job-parse-001"
+	"user_id": "u1",
+	"filename": "jane_doe_cv.pdf",
+	"content_type": "application/pdf",
+	"size_bytes": 123559,
+	"bucket": "profile-cv-bucket",
+	"object_key": "cv/u1/jane_doe_cv.pdf",
+	"cv_upload_record": {
+		"id": "8e68c0d0-2d40-4f1f-b48b-909e6dd9f9bb",
+		"uploaded_at": "2026-06-20T11:00:00Z",
+		"parse_status": "pending",
+		"is_active": true,
+		"storage_key": "cv/u1/jane_doe_cv.pdf",
+		"original_filename": "jane_doe_cv.pdf",
+		"content_type": "application/pdf"
+	}
 }
 ```
 
-#### GET /cv/current
+#### GET /profile/cv
 
 - Purpose: Retrieve metadata and access information for the user's currently active CV.
 - Auth: Protected endpoint (Bearer JWT required).
 - Request:
 	- Headers: `Authorization: Bearer <token>`
 - Success responses: `200 OK`
-- Error responses: `401 Unauthorized`, `404 Not Found`, `500 Internal Server Error`
+- Error responses: `401 Unauthorized`, `500 Internal Server Error`
 
 Success response example:
 ```json
 {
-	"cv_id": "c1",
-	"original_filename": "jane_doe_cv.pdf",
-	"content_type": "application/pdf",
-	"uploaded_at": "2026-06-05T12:00:00Z",
-	"parse_status": "completed",
-	"download_url": "https://<host>/api/v1/cv/current/download"
+	"status": "success",
+	"cv": {
+		"id": "8e68c0d0-2d40-4f1f-b48b-909e6dd9f9bb",
+		"original_filename": "jane_doe_cv.pdf",
+		"storage_key": "cv/u1/jane_doe_cv.pdf",
+		"content_type": "application/pdf",
+		"parse_status": "pending",
+		"uploaded_at": "2026-06-20T11:00:00Z"
+	}
 }
 ```
+
+No active CV response example:
+```json
+{
+	"cv": null
+}
+```
+
+#### DELETE /profile/cv
+
+- Purpose: Delete the user's currently active CV and clear active metadata.
+- Auth: Protected endpoint (Bearer JWT required).
+- Request:
+	- Headers: `Authorization: Bearer <token>`
+- Success responses: `204 No Content`
+- Error responses: `401 Unauthorized`, `500 Internal Server Error`
+
+Notes:
+- If no active CV exists, the endpoint still returns `204 No Content`.
 
 ### Profile
 
@@ -427,7 +470,7 @@ Success response example:
 #### GET /locations/countries
 
 - Purpose: Retrieve selectable countries for profile forms.
-- Auth: Protected endpoint (Bearer JWT required).
+- Auth: Public endpoint in current gateway phase.
 - Success responses: `200 OK`
 
 Success response example:
@@ -443,20 +486,45 @@ Success response example:
 #### GET /locations/regions
 
 - Purpose: Retrieve selectable regions for a country.
-- Auth: Protected endpoint (Bearer JWT required).
+- Auth: Public endpoint in current gateway phase.
 - Query params: `country_code` (required)
 - Success responses: `200 OK`
 
 #### GET /locations/cities
 
 - Purpose: Retrieve selectable cities for a country and optional region.
-- Auth: Protected endpoint (Bearer JWT required).
+- Auth: Public endpoint in current gateway phase.
 - Query params:
 	- `country_code` (required)
 	- `region_id` (optional)
 - Success responses: `200 OK`
 
+### Catalogs
+
+#### GET /catalogs/skills
+
+- Purpose: Retrieve skill suggestions for profile forms.
+- Auth: Public endpoint in current gateway phase.
+- Query params: `q` (optional), `category` (optional), `limit` (optional)
+- Success responses: `200 OK`
+
+#### GET /catalogs/roles
+
+- Purpose: Retrieve role suggestions for profile forms.
+- Auth: Public endpoint in current gateway phase.
+- Query params: `q` (optional), `category` (optional), `limit` (optional)
+- Success responses: `200 OK`
+
+#### GET /catalogs/degree-types
+
+- Purpose: Retrieve degree type suggestions for education forms.
+- Auth: Public endpoint in current gateway phase.
+- Query params: `q` (optional), `limit` (optional)
+- Success responses: `200 OK`
+
 ### Matches
+
+Planned contract. This section may not be implemented in the current local gateway phase.
 
 #### GET /matches
 
@@ -628,6 +696,8 @@ In-progress response example (`202 Accepted`):
 ```
 
 ### Notifications Preferences
+
+Planned contract. This section may not be implemented in the current local gateway phase.
 
 #### GET /notifications/preferences
 
