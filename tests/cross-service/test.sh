@@ -22,10 +22,11 @@ docker compose up -d --build "${SERVICES[@]}"
 # and validate public gateway behavior end-to-end.
 echo "Running cross-service tests..."
 if python3 -m pytest --version >/dev/null 2>&1; then
-  python3 -m pytest tests/cross-service/test_e2e.py -vv -s --tb=short --capture=no --color=yes
+  python3 -m pytest tests/cross-service/test_e2e.py tests/cross-service/test_e2e_negative.py -vv -s --tb=short --capture=no --color=yes
 else
   echo "pytest not found, using direct Python fallback."
   python3 tests/cross-service/test_e2e.py
+  python3 tests/cross-service/test_e2e_negative.py
 fi
 
 echo ""

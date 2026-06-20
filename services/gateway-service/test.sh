@@ -2,20 +2,44 @@
 
 set -euo pipefail
 
-SERVICES=(gateway-service)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMPOSE_CMD=(
+	docker compose
+	-p cv-match
+	--project-directory "$SCRIPT_DIR"
+	-f "$SCRIPT_DIR/docker-compose.yml"
+	-f "$SCRIPT_DIR/docker-compose.override.yml"
+)
+
+REQUIRED_SERVICES=()
+STARTED_SERVICES=()
 
 cleanup() {
-	echo "Stopping test containers..."
-	docker compose down --remove-orphans >/dev/null
+	if [[ ${#STARTED_SERVICES[@]} -gt 0 ]]; then
+		echo "Stopping services started by this test run..."
+		"${COMPOSE_CMD[@]}" stop "${STARTED_SERVICES[@]}" >/dev/null || true
+	fi
 }
 
 trap cleanup EXIT
 
-echo "Starting required containers for test run..."
-docker compose up -d --build "${SERVICES[@]}"
+echo "Ensuring required containers are running..."
+for service in "${REQUIRED_SERVICES[@]}"; do
+	if [[ -z "$("${COMPOSE_CMD[@]}" ps -q "$service")" ]]; then
+		STARTED_SERVICES+=("$service")
+	fi
+done
+
+if [[ ${#STARTED_SERVICES[@]} -gt 0 ]]; then
+	echo "Starting missing services: ${STARTED_SERVICES[*]}"
+	"${COMPOSE_CMD[@]}" up -d --build "${STARTED_SERVICES[@]}"
+fi
 
 echo "Running gateway-service tests in Docker container..."
-docker compose exec -T gateway-service env PYTHONPATH=/app pytest tests/ -vv -s --tb=short --capture=no --color=yes
+"${COMPOSE_CMD[@]}" run --build --rm --no-deps -v "${SCRIPT_DIR}:/app" gateway-service sh -lc '
+	env PYTHONPATH=/app pytest tests/ -vv -s --tb=short --capture=no --color=yes \
+		--cov=src --cov-report=term-missing --cov-report=xml:/app/coverage.xml
+'
 
 echo ""
 printf '\033[32mAll gateway-service tests passed!\033[0m\n'

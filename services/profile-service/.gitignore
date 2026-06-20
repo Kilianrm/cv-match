@@ -16,3 +16,5 @@ build/
 # Runtime artifacts
 *.log
 coverage/
+.coverage
+coverage.xml

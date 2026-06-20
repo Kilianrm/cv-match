@@ -15,7 +15,30 @@ def test_upload_cv_accepts_valid_text_cv(monkeypatch):
         captured["content"] = content
         captured["content_type"] = content_type
 
+    def fake_register_cv_upload(
+        user_id: str,
+        original_filename: str,
+        storage_key: str,
+        content_type: str,
+        parse_status: str,
+    ):
+        captured["register_user_id"] = user_id
+        captured["register_filename"] = original_filename
+        captured["register_storage_key"] = storage_key
+        captured["register_content_type"] = content_type
+        captured["register_parse_status"] = parse_status
+        return {
+            "id": "cv-1",
+            "uploaded_at": "2026-06-20T00:00:00+00:00",
+            "parse_status": "pending",
+            "is_active": True,
+            "storage_key": storage_key,
+            "original_filename": original_filename,
+            "content_type": content_type,
+        }
+
     monkeypatch.setattr(main_module.storage, "upload_bytes", fake_upload_bytes)
+    monkeypatch.setattr(main_module.profile_store, "register_cv_upload", fake_register_cv_upload)
 
     files = {
         "file": (
@@ -31,8 +54,13 @@ def test_upload_cv_accepts_valid_text_cv(monkeypatch):
     body = response.json()
     assert body["status"] == "accepted"
     assert body["user_id"] == "u-1"
-    assert body["object_key"] == "cv/u-1"
-    assert captured["object_key"] == "cv/u-1"
+    assert body["object_key"] == "cv/u-1/cv.txt"
+    assert body["cv_upload_record"]["id"] == "cv-1"
+    assert captured["object_key"] == "cv/u-1/cv.txt"
+    assert captured["register_user_id"] == "u-1"
+    assert captured["register_filename"] == "cv.txt"
+    assert captured["register_storage_key"] == "cv/u-1/cv.txt"
+    assert captured["register_parse_status"] == "pending"
 
 
 def test_upload_cv_rejects_text_that_is_not_cv(monkeypatch):
