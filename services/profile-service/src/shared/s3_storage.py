@@ -36,3 +36,7 @@ class S3Storage:
             ContentType=content_type or "application/octet-stream",
         )
         return object_key
+
+    def delete_object(self, object_key: str) -> None:
+        self.ensure_bucket()
+        self._s3.delete_object(Bucket=settings.cv_bucket_name, Key=object_key)
