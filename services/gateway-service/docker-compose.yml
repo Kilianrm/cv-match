@@ -4,8 +4,9 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     image: gateway-service:local
-    container_name: gateway-service
-    env_file:
-      - .env
+    environment:
+      PROFILE_SERVICE_URL: http://host.docker.internal:8080
+    extra_hosts:
+      - host.docker.internal:host-gateway
     ports:
       - "8000:8000"

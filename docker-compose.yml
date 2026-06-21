@@ -5,8 +5,9 @@ services:
       dockerfile: docker/Dockerfile
     image: gateway-service:local
     container_name: gateway-service
-    env_file:
-      - ./services/gateway-service/.env
+    environment:
+      LOCAL_AUTH_BYPASS: "true"
+      PROFILE_SERVICE_URL: http://profile-service:8080
     ports:
       - "8000:8000"
     depends_on:
@@ -18,8 +19,11 @@ services:
       dockerfile: docker/Dockerfile
     image: profile-service:local
     container_name: profile-service
-    env_file:
-      - ./services/profile-service/.env
+    environment:
+      DATABASE_URL: postgresql://profile_user:profile_pass@postgres:5432/profile_db
+      AWS_ENDPOINT_URL: http://localstack:4566
+    ports:
+      - "8080:8080"
     depends_on:
       - postgres
       - localstack
