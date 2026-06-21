@@ -8,6 +8,7 @@ direct execution via `python3 test_e2e.py` when pytest is unavailable.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import time
 import urllib.error
@@ -33,11 +34,27 @@ def assert_eq(expected, actual, context: str) -> None:
         raise AssertionError(f"{context}: expected {expected}, got {actual}")
 
 
+BASE_URL = os.getenv("BASE_URL", "http://localhost:8000").rstrip("/")
+AUTH_TOKEN = os.getenv("AUTH_TOKEN", "local-dev-token")
+TEST_ENV = os.getenv("TEST_ENV", "local").strip().lower()
+DB_CHECK_MODE = os.getenv("DB_CHECK_MODE", "docker" if TEST_ENV == "local" else "none").strip().lower()
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+PROFILE_POSTGRES_CONTAINER = os.getenv("PROFILE_POSTGRES_CONTAINER", "profile-postgres")
+PROFILE_DB_USER = os.getenv("PROFILE_DB_USER", "profile_user")
+PROFILE_DB_NAME = os.getenv("PROFILE_DB_NAME", "profile_db")
+
+
+def api_url(path: str) -> str:
+    if not path.startswith("/"):
+        raise ValueError(f"path must start with '/': {path}")
+    return f"{BASE_URL}{path}"
+
+
 def wait_for_gateway(timeout_seconds: int = 60) -> None:
     start = time.time()
     while time.time() - start < timeout_seconds:
         try:
-            status, payload = http_request("GET", "http://localhost:8000/health")
+            status, payload = http_request("GET", api_url("/health"))
             if status == 200:
                 data = json.loads(payload)
                 if data.get("status") == "ok":
@@ -56,7 +73,7 @@ def wait_for_auth_session(timeout_seconds: int = 45) -> tuple[int, str]:
     while time.time() - start < timeout_seconds:
         status, payload = http_request(
             "POST",
-            "http://localhost:8000/api/v1/auth/session",
+            api_url("/api/v1/auth/session"),
             headers=AUTH_HEADERS,
         )
         last_status = status
@@ -68,16 +85,34 @@ def wait_for_auth_session(timeout_seconds: int = 45) -> tuple[int, str]:
 
 
 def psql_scalar(query: str) -> str:
+    if DB_CHECK_MODE == "none":
+        raise RuntimeError("database checks are disabled (DB_CHECK_MODE=none)")
+
+    if DB_CHECK_MODE == "database_url":
+        if not DATABASE_URL:
+            raise RuntimeError("DATABASE_URL is required when DB_CHECK_MODE=database_url")
+        try:
+            from psycopg import connect
+        except ModuleNotFoundError as exc:
+            raise RuntimeError("psycopg is required for DB_CHECK_MODE=database_url") from exc
+
+        with connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                cur.execute(query)
+                row = cur.fetchone()
+                return "" if row is None else str(row[0])
+
+    if DB_CHECK_MODE != "docker":
+        raise RuntimeError(f"unsupported DB_CHECK_MODE: {DB_CHECK_MODE}")
+
     cmd = [
         "docker",
         "exec",
         "-i",
-        "profile-postgres",
+        PROFILE_POSTGRES_CONTAINER,
         "psql",
-        "-U",
-        "profile_user",
-        "-d",
-        "profile_db",
+        "-U", PROFILE_DB_USER,
+        "-d", PROFILE_DB_NAME,
         "-tA",
         "-c",
         query,
@@ -86,7 +121,7 @@ def psql_scalar(query: str) -> str:
     return result.stdout.strip()
 
 
-AUTH_HEADERS = {"Authorization": "Bearer local-dev-token"}
+AUTH_HEADERS = {"Authorization": f"Bearer {AUTH_TOKEN}"}
 TEST_USER_EMAIL: str | None = None
 
 
@@ -105,7 +140,7 @@ def test_02_auth_session_through_gateway_service() -> None:
 
 def test_03_profile_read_before_upsert() -> None:
     print("[3/6] profile read before upsert (allow 404 or existing 200)")
-    status, _ = http_request("GET", "http://localhost:8000/api/v1/profile", headers=AUTH_HEADERS)
+    status, _ = http_request("GET", api_url("/api/v1/profile"), headers=AUTH_HEADERS)
     if status not in (200, 404):
         raise AssertionError(f"initial profile read status code: expected 200 or 404, got {status}")
 
@@ -128,7 +163,7 @@ def test_04_profile_upsert_and_read() -> None:
     ).encode("utf-8")
     status, payload = http_request(
         "PUT",
-        "http://localhost:8000/api/v1/profile",
+        api_url("/api/v1/profile"),
         body=update_body,
         headers={**AUTH_HEADERS, "Content-Type": "application/json"},
     )
@@ -137,7 +172,7 @@ def test_04_profile_upsert_and_read() -> None:
     assert_eq("accepted", data.get("status"), "profile update payload status")
 
     print("[5/6] profile read after upsert")
-    status, payload = http_request("GET", "http://localhost:8000/api/v1/profile", headers=AUTH_HEADERS)
+    status, payload = http_request("GET", api_url("/api/v1/profile"), headers=AUTH_HEADERS)
     assert_eq(200, status, "profile read after upsert status code")
     data = json.loads(payload)
     profile = data.get("profile", {})
@@ -186,7 +221,7 @@ def test_05_cv_upload_through_gateway_service() -> None:
 
     status, payload = http_request(
         "POST",
-        "http://localhost:8000/api/v1/profile/cv",
+        api_url("/api/v1/profile/cv"),
         body=multipart,
         headers={
             **AUTH_HEADERS,
@@ -199,11 +234,16 @@ def test_05_cv_upload_through_gateway_service() -> None:
 
 
 def test_06_database_rows_persisted() -> None:
+    if DB_CHECK_MODE == "none":
+        print("Skipping direct DB persistence checks (DB_CHECK_MODE=none)")
+        return
+
     print("Verifying users row exists in PostgreSQL")
     if not TEST_USER_EMAIL:
         raise AssertionError("expected TEST_USER_EMAIL to be set before DB verification")
 
-    user_count = psql_scalar(f"SELECT count(*) FROM users WHERE email = '{TEST_USER_EMAIL}';")
+    safe_email = TEST_USER_EMAIL.replace("'", "''")
+    user_count = psql_scalar(f"SELECT count(*) FROM users WHERE email = '{safe_email}';")
     assert_eq("1", user_count, "users row count")
 
     print("Verifying upserted profile values are persisted in PostgreSQL")
@@ -254,7 +294,7 @@ def test_07_profile_validation_rejects_invalid_location_hierarchy() -> None:
 
     status, payload = http_request(
         "PUT",
-        "http://localhost:8000/api/v1/profile",
+        api_url("/api/v1/profile"),
         body=invalid_body,
         headers={**AUTH_HEADERS, "Content-Type": "application/json"},
     )
@@ -270,7 +310,7 @@ def test_08_profile_subsections_crud() -> None:
     skill_create = json.dumps({"skill_name": "Python", "proficiency_level": "advanced"}).encode("utf-8")
     status, payload = http_request(
         "POST",
-        "http://localhost:8000/api/v1/profile/skills",
+        api_url("/api/v1/profile/skills"),
         body=skill_create,
         headers={**AUTH_HEADERS, "Content-Type": "application/json"},
     )
@@ -286,7 +326,7 @@ def test_08_profile_subsections_crud() -> None:
     role_create = json.dumps({"role_name": "Backend Engineer", "role_id": known_role_id}).encode("utf-8")
     status, payload = http_request(
         "POST",
-        "http://localhost:8000/api/v1/profile/preferred-roles",
+        api_url("/api/v1/profile/preferred-roles"),
         body=role_create,
         headers={**AUTH_HEADERS, "Content-Type": "application/json"},
     )
@@ -300,7 +340,7 @@ def test_08_profile_subsections_crud() -> None:
     role_update = json.dumps({"role_name": "Senior Backend Engineer"}).encode("utf-8")
     status, payload = http_request(
         "PUT",
-        f"http://localhost:8000/api/v1/profile/preferred-roles/{role_id}",
+        api_url(f"/api/v1/profile/preferred-roles/{role_id}"),
         body=role_update,
         headers={**AUTH_HEADERS, "Content-Type": "application/json"},
     )
@@ -323,7 +363,7 @@ def test_08_profile_subsections_crud() -> None:
     ).encode("utf-8")
     status, payload = http_request(
         "POST",
-        "http://localhost:8000/api/v1/profile/experience",
+        api_url("/api/v1/profile/experience"),
         body=exp_create,
         headers={**AUTH_HEADERS, "Content-Type": "application/json"},
     )
@@ -344,7 +384,7 @@ def test_08_profile_subsections_crud() -> None:
     ).encode("utf-8")
     status, payload = http_request(
         "PUT",
-        f"http://localhost:8000/api/v1/profile/experience/{experience_id}",
+        api_url(f"/api/v1/profile/experience/{experience_id}"),
         body=exp_update,
         headers={**AUTH_HEADERS, "Content-Type": "application/json"},
     )
@@ -363,7 +403,7 @@ def test_08_profile_subsections_crud() -> None:
     ).encode("utf-8")
     status, payload = http_request(
         "POST",
-        "http://localhost:8000/api/v1/profile/education",
+        api_url("/api/v1/profile/education"),
         body=edu_create,
         headers={**AUTH_HEADERS, "Content-Type": "application/json"},
     )
@@ -386,7 +426,7 @@ def test_08_profile_subsections_crud() -> None:
     ).encode("utf-8")
     status, payload = http_request(
         "PUT",
-        f"http://localhost:8000/api/v1/profile/education/{education_id}",
+        api_url(f"/api/v1/profile/education/{education_id}"),
         body=edu_update,
         headers={**AUTH_HEADERS, "Content-Type": "application/json"},
     )
@@ -403,7 +443,7 @@ def test_08_profile_subsections_crud() -> None:
     ).encode("utf-8")
     status, payload = http_request(
         "POST",
-        "http://localhost:8000/api/v1/profile/certifications",
+        api_url("/api/v1/profile/certifications"),
         body=cert_create,
         headers={**AUTH_HEADERS, "Content-Type": "application/json"},
     )
@@ -422,7 +462,7 @@ def test_08_profile_subsections_crud() -> None:
     ).encode("utf-8")
     status, payload = http_request(
         "PUT",
-        f"http://localhost:8000/api/v1/profile/certifications/{cert_id}",
+        api_url(f"/api/v1/profile/certifications/{cert_id}"),
         body=cert_update,
         headers={**AUTH_HEADERS, "Content-Type": "application/json"},
     )
@@ -433,18 +473,18 @@ def test_08_profile_subsections_crud() -> None:
         "updated certification name",
     )
 
-    status, _ = http_request("DELETE", f"http://localhost:8000/api/v1/profile/skills/{skill_id}", headers=AUTH_HEADERS)
+    status, _ = http_request("DELETE", api_url(f"/api/v1/profile/skills/{skill_id}"), headers=AUTH_HEADERS)
     assert_eq(204, status, "delete skill status code")
-    status, _ = http_request("DELETE", f"http://localhost:8000/api/v1/profile/preferred-roles/{role_id}", headers=AUTH_HEADERS)
+    status, _ = http_request("DELETE", api_url(f"/api/v1/profile/preferred-roles/{role_id}"), headers=AUTH_HEADERS)
     assert_eq(204, status, "delete preferred role status code")
-    status, _ = http_request("DELETE", f"http://localhost:8000/api/v1/profile/experience/{experience_id}", headers=AUTH_HEADERS)
+    status, _ = http_request("DELETE", api_url(f"/api/v1/profile/experience/{experience_id}"), headers=AUTH_HEADERS)
     assert_eq(204, status, "delete experience status code")
-    status, _ = http_request("DELETE", f"http://localhost:8000/api/v1/profile/education/{education_id}", headers=AUTH_HEADERS)
+    status, _ = http_request("DELETE", api_url(f"/api/v1/profile/education/{education_id}"), headers=AUTH_HEADERS)
     assert_eq(204, status, "delete education status code")
-    status, _ = http_request("DELETE", f"http://localhost:8000/api/v1/profile/certifications/{cert_id}", headers=AUTH_HEADERS)
+    status, _ = http_request("DELETE", api_url(f"/api/v1/profile/certifications/{cert_id}"), headers=AUTH_HEADERS)
     assert_eq(204, status, "delete certification status code")
 
-    status, payload = http_request("GET", "http://localhost:8000/api/v1/profile", headers=AUTH_HEADERS)
+    status, payload = http_request("GET", api_url("/api/v1/profile"), headers=AUTH_HEADERS)
     assert_eq(200, status, "profile read after subsection deletes status code")
     data = json.loads(payload)
     assert_eq(0, len(data.get("skills", [])), "skills should be empty after delete")
@@ -457,10 +497,10 @@ def test_08_profile_subsections_crud() -> None:
 def test_09_cv_delete_through_gateway_service() -> None:
     print("[9/9] CV delete through gateway-service")
 
-    status, _ = http_request("DELETE", "http://localhost:8000/api/v1/profile/cv", headers=AUTH_HEADERS)
+    status, _ = http_request("DELETE", api_url("/api/v1/profile/cv"), headers=AUTH_HEADERS)
     assert_eq(204, status, "cv delete status code")
 
-    status, payload = http_request("GET", "http://localhost:8000/api/v1/profile/cv", headers=AUTH_HEADERS)
+    status, payload = http_request("GET", api_url("/api/v1/profile/cv"), headers=AUTH_HEADERS)
     assert_eq(200, status, "cv get after delete status code")
     assert_eq(None, json.loads(payload).get("cv"), "cv should be null after delete")
 
