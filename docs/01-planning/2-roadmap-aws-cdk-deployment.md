@@ -35,8 +35,8 @@ Deploy the current validated local MVP to AWS with a safe, non-production-first 
 
 1. **CDK foundation** - Bootstrap account/region, stack boundaries, and environment conventions.
 2. **Network baseline** - Provision VPC, subnets, route model, security groups, and NAT strategy.
-3. **Data and storage** - Provision Aurora/RDS and S3; validate connectivity.
-4. **Schema bootstrap** - Run migrations/init and seed catalogs in AWS `dev`.
+3. **Data and storage** - Provision RDS and S3; validate connectivity.
+4. **Schema bootstrap** - Initialize database schema and seed catalogs in AWS `dev` (first deploy; no migration history required).
 5. **Service deployment** - Deploy `profile-service` then `gateway-service`; validate route contracts.
 6. **Operational settings** - Configure health checks, timeouts, autoscaling thresholds, and diagnostics.
 7. **CI/CD rollout** - Add build/test/deploy pipeline with rollback flow.
