@@ -5,16 +5,18 @@ This project implements roadmap step 1: bootstrap-ready CDK foundation with stac
 ## Foundation Boundaries
 
 - network
-- data
-- services
-- optional observability
+- security
+- shared-infra
+- profile-service
+- gateway-service
 
 Stack naming follows this pattern:
 
 - <appName>-<stage>-network
-- <appName>-<stage>-data
-- <appName>-<stage>-services
-- <appName>-<stage>-observability
+- <appName>-<stage>-security
+- <appName>-<stage>-shared-infra
+- <appName>-<stage>-profile-service
+- <appName>-<stage>-gateway-service
 
 Default values:
 
@@ -38,14 +40,16 @@ npx cdk bootstrap aws://$(aws sts get-caller-identity --query Account --output t
 ```bash
 cd infra/cdk
 npm run build # Compile Typescript
+node dist/bin/cdk.js --version # Optional sanity check for built app entrypoint
 npx cdk synth -c stage=dev -c appName=cv-match # Generate CloudFormation
 npx cdk deploy --all -c stage=dev -c appName=cv-match # Upload infrastructure to AWS
 ```
 
-Enable optional observability boundary:
+For faster repeated runs, prefer the built-app workflow instead of `ts-node`:
 
 ```bash
-npx cdk deploy --all -c stage=dev -c appName=cv-match -c enableObservability=true
+cd infra/cdk
+npm run synth -- -c stage=dev -c appName=cv-match
 ```
 
 ## Useful Commands
@@ -53,7 +57,20 @@ npx cdk deploy --all -c stage=dev -c appName=cv-match -c enableObservability=tru
 - npm run build
 - npm run watch
 - npm test
+- npm run synth -- -c stage=dev -c appName=cv-match
+- npm run diff -- -c stage=dev -c appName=cv-match
+- npm run deploy:all -- -c stage=dev -c appName=cv-match
+- npm run destroy:all -- -c stage=dev -c appName=cv-match
 - npx cdk synth -c stage=dev -c appName=cv-match
 - npx cdk diff --all -c stage=dev -c appName=cv-match
 - npx cdk deploy --all -c stage=dev -c appName=cv-match
 - npx cdk destroy --all -c stage=dev -c appName=cv-match
+
+## Deployment Workflow
+
+1. Set `AWS_PROFILE` and `AWS_REGION`.
+2. Bootstrap the target account/region once with `npx cdk bootstrap`.
+3. Synthesize and deploy the `dev` stage with the `stage` and `appName` context values.
+4. For the current `dev` microservice flow, deploy `profile-service` first, resolve the emitted `ProfileServiceUrl`, and then deploy `gateway-service` with that URL passed as `profileServiceBaseUrl`.
+
+If you only deploy one service, that is still supported for isolated validation. In that case, the service should not rely on a missing downstream endpoint unless you provide one explicitly.

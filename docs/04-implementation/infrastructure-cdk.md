@@ -20,13 +20,14 @@ bin/
 	conventions.ts
 lib/
 	stacks/
-		network-stack.ts
-		data-stack.ts
-		observability-stack.ts
-		services-stack.ts
-		       services/
-			       gateway-service-stack.ts
-			       profile-service-stack.ts
+		base-infra/
+			network-stack.ts
+			security-stack.ts
+		shared-infra/
+			data-stack.ts
+		services/
+			gateway-service-stack.ts
+			profile-service-stack.ts
 			cv-parser-service-stack.ts
 			scraper-service-stack.ts
 			matching-service-stack.ts
@@ -36,8 +37,7 @@ lib/
 
 Rule of thumb:
 
-- keep `network` and `data` as shared infrastructure stacks
-- keep `services-stack.ts` only if it stays a thin grouping boundary
+- keep `network`, `security`, and `shared-infra` as the shared foundation boundaries
 - move real workloads into one stack per microservice when they need independent deploys or lifecycles
 
 Test layout:
@@ -60,20 +60,25 @@ First service example:
 
 - `gateway-service-stack.ts` is the public API service stack, deployed behind an ALB and connected to the internal profile service URL.
 
+Deployment flow for `dev`:
+
+- When deploying both services together, deploy `profile-service` first, read its `ProfileServiceUrl` output, then pass that URL into the `gateway-service` stack as `profileServiceBaseUrl`.
+- When deploying a single microservice for isolated validation, the stack should still synthesize and deploy independently, but the downstream URL must already be reachable or explicitly overridden if the service depends on it.
+- Local Docker Compose remains the default for local development, while AWS deployments use the CDK/ECS path.
+
 ## Stacks
 
-- `network` - VPC, subnets, routing, and security group baseline.
-- `data` - RDS PostgreSQL, S3, and shared data resources.
-- `services` - thin grouping boundary for shared service wiring, if needed.
+- `network` - VPC, subnets, and routing baseline.
+- `security` - shared service-to-service and database access controls.
+- `shared-infra` - RDS PostgreSQL, S3, and shared data resources.
 - individual service stacks - runtime resources for each microservice.
-- `observability` - optional alarms, dashboards, and log configuration.
 
 Stack names follow this pattern:
 
 - `<appName>-<stage>-network`
-- `<appName>-<stage>-data`
-- `<appName>-<stage>-services`
-- `<appName>-<stage>-observability`
+- `<appName>-<stage>-security`
+- `<appName>-<stage>-shared-infra`
+- `<appName>-<stage>-<service-name>`
 
 ## Shared Constructs
 
@@ -83,7 +88,7 @@ Standard tags:
 
 - `project = cv-match`
 - `environment = dev | staging | prod`
-- `stack-boundary = network | data | services | observability`
+- `stack-boundary = network | security | shared-infra | <service-name>`
 - `managed-by = aws-cdk`
 
 ## Environment Configuration
@@ -110,14 +115,19 @@ npx cdk deploy --all -c stage=dev -c appName=cv-match
 1. Set `AWS_PROFILE` and `AWS_REGION`.
 2. Bootstrap the target account/region once with `npx cdk bootstrap`.
 3. Synthesize and deploy the `dev` stage with the `stage` and `appName` context values.
-4. Enable `observability` only when needed with `-c enableObservability=true`.
 
 ## Current Dev Baseline
 
-- `network-stack.ts` provisions the VPC, subnets, NAT strategy, and shared security groups.
+- `network-stack.ts` provisions the VPC and subnet tiers with `natGateways: 0` for cost control in `dev`.
+- `security-stack.ts` provisions shared application and database security groups.
 - `data-stack.ts` provisions a cost-sensitive `RDS PostgreSQL` instance in isolated subnets.
 - `data-stack.ts` provisions a private versioned S3 bucket for CV uploads.
 - `gateway-service-stack.ts` consumes the shared VPC and runs ECS tasks in private subnets behind a public ALB.
+
+## Network Egress in Dev
+
+- Default `dev` baseline keeps NAT disabled to reduce recurring cost.
+- Private workloads requiring outbound internet should trigger an explicit network update to re-enable NAT (or introduce specific VPC endpoints).
 
 ## IAM and Permissions Boundaries
 
