@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 import os
 
 
@@ -17,7 +18,7 @@ class Settings:
         f"postgresql://{postgres_user}:{postgres_password}@{postgres_host}:{postgres_port}/{postgres_db}",
     )
     aws_region: str = os.getenv("AWS_REGION", "us-east-1")
-    aws_endpoint_url: str = os.getenv("AWS_ENDPOINT_URL", "http://localstack:4566")
+    aws_endpoint_url: Optional[str] = os.getenv("AWS_ENDPOINT_URL") or None
     cv_bucket_name: str = os.getenv("CV_BUCKET_NAME", "profile-cv-bucket")
 
 

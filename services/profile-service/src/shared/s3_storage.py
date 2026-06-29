@@ -11,13 +11,14 @@ logger = logging.getLogger(__name__)
 
 class S3Storage:
     def __init__(self) -> None:
-        self._s3 = boto3.client(
-            "s3",
-            region_name=settings.aws_region,
-            endpoint_url=settings.aws_endpoint_url,
-            aws_access_key_id="test",
-            aws_secret_access_key="test",
-        )
+        client_kwargs: dict[str, str] = {"region_name": settings.aws_region}
+
+        if settings.aws_endpoint_url:
+            client_kwargs["endpoint_url"] = settings.aws_endpoint_url
+            client_kwargs["aws_access_key_id"] = "test"
+            client_kwargs["aws_secret_access_key"] = "test"
+
+        self._s3 = boto3.client("s3", **client_kwargs)
 
     def ensure_bucket(self) -> None:
         bucket = settings.cv_bucket_name

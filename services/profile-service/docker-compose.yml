@@ -4,6 +4,10 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     image: profile-service:local
+    environment:
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_REGION: us-east-1
+      CV_BUCKET_NAME: profile-cv-bucket
     ports:
       - "8080:8080"
     depends_on:
