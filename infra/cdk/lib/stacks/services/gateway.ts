@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import { CfnOutput, Duration, Stack, StackProps } from 'aws-cdk-lib';
@@ -8,10 +9,28 @@ import { Construct } from 'constructs';
 
 import { applyConventions, FoundationConfig } from '../../../bin/conventions';
 
+function findRepoPath(...targetSegments: string[]): string {
+  let currentDirectory = __dirname;
+
+  while (true) {
+    const candidatePath = path.join(currentDirectory, ...targetSegments);
+    if (fs.existsSync(candidatePath)) {
+      return candidatePath;
+    }
+
+    const parentDirectory = path.dirname(currentDirectory);
+    if (parentDirectory === currentDirectory) {
+      throw new Error(`Could not resolve path for ${targetSegments.join('/')}`);
+    }
+
+    currentDirectory = parentDirectory;
+  }
+}
+
 export interface GatewayServiceStackProps extends StackProps {
   foundation: FoundationConfig;
   vpc: ec2.IVpc;
-  securityGroups?: ec2.ISecurityGroup[];
+  securityGroups?: ec2.ISecurityGroup[]; // ?: Optional security groups for the ECS service. If not provided, the default security group of the VPC will be used.
   profileServiceBaseUrl: string;
   serviceImageDirectory?: string;
   desiredCount?: number;
@@ -27,9 +46,9 @@ export class GatewayServiceStack extends Stack {
   constructor(scope: Construct, id: string, props: GatewayServiceStackProps) {
     super(scope, id, props);
 
-    applyConventions(props.foundation, 'gateway-service', this);
+    applyConventions(props.foundation, 'gateway', this);
 
-    const imageDirectory = props.serviceImageDirectory ?? path.resolve(process.cwd(), '../../services/gateway-service');
+    const imageDirectory = props.serviceImageDirectory ?? findRepoPath('services', 'gateway-service');
     const servicePort = props.servicePort ?? 8000;
 
     const cluster = new ecs.Cluster(this, 'GatewayCluster', {
@@ -63,6 +82,11 @@ export class GatewayServiceStack extends Stack {
       desiredCount: props.desiredCount ?? 1,
       cpu: props.cpu ?? 512,
       memoryLimitMiB: props.memoryLimitMiB ?? 1024,
+      circuitBreaker: {
+        rollback: true,
+      },
+      minHealthyPercent: 100,
+      maxHealthyPercent: 200,
       ...(props.securityGroups && { securityGroups: props.securityGroups }),
       assignPublicIp: false,
       taskSubnets: {

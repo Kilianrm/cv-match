@@ -10,11 +10,15 @@ export interface FoundationConfig {
 }
 
 export function getStage(value?: string): DeploymentStage {
+  if (!value) {
+    return 'dev';
+  }
+
   if (value === 'staging' || value === 'prod' || value === 'dev') {
     return value;
   }
 
-  return 'dev';
+  throw new Error(`Invalid deployment stage: ${value}. Expected one of dev, staging, prod.`);
 }
 
 export function getEnvironment(): Environment {

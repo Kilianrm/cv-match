@@ -1,16 +1,38 @@
 import { App, Environment } from 'aws-cdk-lib';
-import { DataStack } from '../lib/stacks/data-stack';
-import { NetworkStack } from '../lib/stacks/network-stack';
-import { ObservabilityStack } from '../lib/stacks/observability-stack';
-import { GatewayServiceStack } from '../lib/stacks/services/gateway-service-stack';
-import { ServicesStack } from '../lib/stacks/services-stack';
+import { NetworkStack } from '../lib/stacks/base/network';
+import { SecurityStack } from '../lib/stacks/base/security';
+import { AuthStack } from '../lib/stacks/shared/auth';
+import { DataStack } from '../lib/stacks/shared/data';
+import { GatewayServiceStack } from '../lib/stacks/services/gateway';
+import { ProfileServiceStack } from '../lib/stacks/services/profile';
 import { FoundationConfig, getEnvironment, getStage, stackId } from './conventions';
 
 export interface FoundationAppOptions {
   stage?: string;
   appName?: string;
-  enableObservability?: boolean;
   env?: Environment;
+  useSharedSecurity?: boolean;
+  publicDatabaseAccess?: boolean;
+  publicDatabaseAccessCidr?: string;
+  profileServiceBaseUrl?: string;
+  localFrontendBaseUrl?: string;
+  cognitoDomainPrefix?: string;
+}
+
+function parseOptionalBoolean(value: string | undefined): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === 'true') {
+    return true;
+  }
+
+  if (value === 'false') {
+    return false;
+  }
+
+  throw new Error(`Invalid boolean value: ${value}. Expected true or false.`);
 }
 
 export function deployFoundation(app: App, options: FoundationAppOptions = {}) {
@@ -20,61 +42,118 @@ export function deployFoundation(app: App, options: FoundationAppOptions = {}) {
     env: options.env ?? getEnvironment(),
   };
 
+  const useSharedSecurity = options.useSharedSecurity ?? true;
+  const publicDatabaseAccess = options.publicDatabaseAccess ?? false;
+  const publicDatabaseAccessCidr = options.publicDatabaseAccessCidr;
+  const profileServiceBaseUrl = options.profileServiceBaseUrl ?? 'http://profile-service:8080';
+  const localFrontendBaseUrl = options.localFrontendBaseUrl;
+  const cognitoDomainPrefix = options.cognitoDomainPrefix;
+
+  if (publicDatabaseAccess && config.stage !== 'dev') {
+    throw new Error('publicDatabaseAccess is only allowed for dev stage.');
+  }
+
+  if (publicDatabaseAccess && !publicDatabaseAccessCidr) {
+    throw new Error('publicDatabaseAccessCidr is required when publicDatabaseAccess is enabled.');
+  }
+
   const network = new NetworkStack(app, stackId(config, 'network'), {
     env: config.env,
     foundation: config,
-    description: 'Boundary stack for networking resources.',
+    description: 'Base infrastructure stack for networking resources.',
   });
+
+  const security = useSharedSecurity
+    ? new SecurityStack(app, stackId(config, 'security'), {
+        env: config.env,
+        foundation: config,
+        vpc: network.vpc,
+        allowDatabasePublicAccess: publicDatabaseAccess,
+        databasePublicAccessCidr: publicDatabaseAccessCidr,
+        description: 'Base infrastructure stack for shared security controls.',
+      })
+    : undefined;
 
   const data = new DataStack(app, stackId(config, 'data'), {
     env: config.env,
     foundation: config,
     vpc: network.vpc,
-    databaseSecurityGroup: network.databaseSecurityGroup,
-    description: 'Boundary stack for storage and data resources.',
+    databaseSecurityGroup: security?.databaseSecurityGroup,
+    allowSelfManagedSecurityGroup: !useSharedSecurity,
+    publicDatabaseAccess,
+    publicDatabaseAccessCidr,
+    description: 'Shared infrastructure stack for storage and data resources.',
   });
 
-  const services = new ServicesStack(app, stackId(config, 'services'), {
+  const auth = new AuthStack(app, stackId(config, 'auth'), {
     env: config.env,
     foundation: config,
-    description: 'Boundary stack for runtime services.',
+    localFrontendBaseUrl,
+    cognitoDomainPrefix,
+    description: 'Shared authentication stack for Cognito user pool and Hosted UI.',
   });
 
-  const gatewayService = new GatewayServiceStack(app, stackId(config, 'gateway-service'), {
+  const profileService = new ProfileServiceStack(app, stackId(config, 'profile'), {
     env: config.env,
     foundation: config,
     vpc: network.vpc,
-    profileServiceBaseUrl: 'http://profile-service:8080',
+    databaseSecret: data.database.secret!,
+    databaseHost: data.database.instanceEndpoint.hostname,
+    cvBucket: data.cvBucket,
+    description: 'Profile service stack for user profile and CV workflows.',
+  });
+
+  const gatewayService = new GatewayServiceStack(app, stackId(config, 'gateway'), {
+    env: config.env,
+    foundation: config,
+    vpc: network.vpc,
+    profileServiceBaseUrl,
+    cognitoClientId: auth.userPoolClient.userPoolClientId,
+    jwksUrl: auth.jwksUrl,
     description: 'Gateway service stack for the public API.',
   });
 
   data.addDependency(network);
-  services.addDependency(data);
-  gatewayService.addDependency(network);
-  gatewayService.addDependency(services);
-
-  let observability: ObservabilityStack | undefined;
-  if (options.enableObservability) {
-    observability = new ObservabilityStack(app, stackId(config, 'observability'), {
-      env: config.env,
-      foundation: config,
-      description: 'Optional boundary stack for observability resources.',
-    });
-    observability.addDependency(services);
+  if (security) {
+    data.addDependency(security);
   }
+  auth.addDependency(network);
+  profileService.addDependency(network);
+  if (security) {
+    profileService.addDependency(security);
+  }
+  profileService.addDependency(data);
+  gatewayService.addDependency(network);
+  gatewayService.addDependency(auth);
+  if (security) {
+    gatewayService.addDependency(security);
+  }
+  gatewayService.addDependency(data);
 
-  return { network, data, services, gatewayService, observability, config };
+  return { network, security, data, auth, profileService, gatewayService, config };
 }
 
 
 export function deployFoundationFromContext(app: App) {
   const stage = app.node.tryGetContext('stage') as string | undefined;
   const appName = app.node.tryGetContext('appName') as string | undefined;
-  const enableObservabilityContext = app.node.tryGetContext('enableObservability');
-  const enableObservability =
-    enableObservabilityContext === true ||
-    enableObservabilityContext === 'true' ||
-    process.env.CDK_ENABLE_OBSERVABILITY === 'true';
+  const useSharedSecurityValue = app.node.tryGetContext('useSharedSecurity') as string | undefined;
+  const useSharedSecurity = parseOptionalBoolean(useSharedSecurityValue);
+  const publicDatabaseAccessValue = app.node.tryGetContext('publicDatabaseAccess') as string | undefined;
+  const publicDatabaseAccess = parseOptionalBoolean(publicDatabaseAccessValue);
+  const publicDatabaseAccessCidr = app.node.tryGetContext('publicDatabaseAccessCidr') as string | undefined;
+  const profileServiceBaseUrl = app.node.tryGetContext('profileServiceBaseUrl') as string | undefined;
+  const localFrontendBaseUrl = app.node.tryGetContext('localFrontendBaseUrl') as string | undefined;
+  const cognitoDomainPrefix = app.node.tryGetContext('cognitoDomainPrefix') as string | undefined;
 
-  return deployFoundation(app, { stage, appName, enableObservability });
+  return deployFoundation(app, {
+    stage,
+    appName,
+    useSharedSecurity,
+    publicDatabaseAccess,
+    publicDatabaseAccessCidr,
+    profileServiceBaseUrl,
+    localFrontendBaseUrl,
+    cognitoDomainPrefix,
+  });
 }

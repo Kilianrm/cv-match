@@ -1,7 +1,7 @@
 import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 
-import { NetworkStack } from '../../lib/stacks/network-stack';
+import { NetworkStack } from '../../cdk/lib/stacks/base/network';
 
 test('network stack creates the vpc and subnet baseline', () => {
 	const app = new App();
@@ -20,16 +20,10 @@ test('network stack creates the vpc and subnet baseline', () => {
 
 	template.resourceCountIs('AWS::EC2::VPC', 1);
 	template.resourceCountIs('AWS::EC2::InternetGateway', 1);
-	template.resourceCountIs('AWS::EC2::NatGateway', 1);
+	template.resourceCountIs('AWS::EC2::NatGateway', 0);
 	template.resourceCountIs('AWS::EC2::Subnet', 6);
-	template.resourceCountIs('AWS::EC2::SecurityGroup', 2);
+	template.resourceCountIs('AWS::EC2::SecurityGroup', 0);
 	template.hasOutput('VpcId', {
-		Value: Match.anyValue(),
-	});
-	template.hasOutput('ServiceSecurityGroupId', {
-		Value: Match.anyValue(),
-	});
-	template.hasOutput('DatabaseSecurityGroupId', {
 		Value: Match.anyValue(),
 	});
 });

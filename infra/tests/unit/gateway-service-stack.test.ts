@@ -1,8 +1,8 @@
 import { App } from 'aws-cdk-lib';
 import { Template } from 'aws-cdk-lib/assertions';
 
-import { NetworkStack } from '../../lib/stacks/network-stack';
-import { GatewayServiceStack } from '../../lib/stacks/services/gateway-service-stack';
+import { NetworkStack } from '../../cdk/lib/stacks/base/network';
+import { GatewayServiceStack } from '../../cdk/lib/stacks/services/gateway';
 
 test('gateway service stack is compatible with the network stack vpc', () => {
 	const app = new App();
@@ -17,7 +17,7 @@ test('gateway service stack is compatible with the network stack vpc', () => {
 		},
 	});
 
-	const stack = new GatewayServiceStack(app, 'cv-match-dev-gateway-service', {
+	const stack = new GatewayServiceStack(app, 'cv-match-dev-gateway', {
 		env,
 		foundation: {
 			appName: 'cv-match',

@@ -1,10 +1,10 @@
 import { App } from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 
-import { DataStack } from '../../lib/stacks/data-stack';
-import { NetworkStack } from '../../lib/stacks/network-stack';
+import { NetworkStack } from '../../cdk/lib/stacks/base/network';
+import { SecurityStack } from '../../cdk/lib/stacks/base/security';
 
-test('data stack creates a cheap postgres instance and private cv bucket', () => {
+test('security stack creates service and database security groups', () => {
 	const app = new App();
 	const env = { account: '111111111111', region: 'us-east-1' };
 
@@ -17,7 +17,7 @@ test('data stack creates a cheap postgres instance and private cv bucket', () =>
 		},
 	});
 
-	const stack = new DataStack(app, 'cv-match-dev-data', {
+	const stack = new SecurityStack(app, 'cv-match-dev-security', {
 		env,
 		foundation: {
 			appName: 'cv-match',
@@ -25,17 +25,15 @@ test('data stack creates a cheap postgres instance and private cv bucket', () =>
 			env,
 		},
 		vpc: network.vpc,
-		databaseSecurityGroup: network.databaseSecurityGroup,
 	});
 
 	const template = Template.fromStack(stack);
 
-	template.resourceCountIs('AWS::RDS::DBInstance', 1);
-	template.resourceCountIs('AWS::S3::Bucket', 1);
-	template.hasOutput('DatabaseEndpointAddress', {
+	template.resourceCountIs('AWS::EC2::SecurityGroup', 2);
+	template.hasOutput('ServiceSecurityGroupId', {
 		Value: Match.anyValue(),
 	});
-	template.hasOutput('CvBucketName', {
+	template.hasOutput('DatabaseSecurityGroupId', {
 		Value: Match.anyValue(),
 	});
 });

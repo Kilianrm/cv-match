@@ -6,6 +6,10 @@
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk",
+    "synth": "npm run build && cdk synth",
+    "diff": "npm run build && cdk diff --all",
+    "deploy:all": "npm run build && cdk deploy --all",
+    "destroy:all": "npm run build && cdk destroy --all --force",
     "deploy:local": "../deploy/deploy-local.sh",
     "destroy:local": "../deploy/destroy-local.sh",
     "bootstrap:dev-db": "../deploy/bootstrap-dev-db.sh",
@@ -14,10 +18,9 @@
   "devDependencies": {
     "@types/jest": "^30",
     "@types/node": "^24.10.1",
+    "aws-cdk": "2.1128.0",
     "jest": "^30",
     "ts-jest": "^29",
-    "aws-cdk": "2.1128.0",
-    "ts-node": "^10.9.2",
     "typescript": "~5.9.3"
   },
   "dependencies": {
