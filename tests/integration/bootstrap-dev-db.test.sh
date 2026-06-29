@@ -9,8 +9,8 @@ STAGE="${STAGE:-dev}"
 REGION="${AWS_REGION:-us-east-1}"
 STACK_NAME="${STACK_NAME:-${APP_NAME}-${STAGE}-data}"
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-BOOTSTRAP_SCRIPT="${ROOT_DIR}/infra/deploy/bootstrap-dev-db.sh"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+BOOTSTRAP_SCRIPT="${ROOT_DIR}/scripts/bootstrap-dev-db.sh"
 
 if [[ ! -f "${BOOTSTRAP_SCRIPT}" ]]; then
   echo "bootstrap script not found: ${BOOTSTRAP_SCRIPT}" >&2

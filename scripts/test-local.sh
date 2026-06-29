@@ -60,7 +60,16 @@ run_service_local_tests() {
 
 run_cross_service_tests() {
 	echo "[test-local] running cross-service suite"
-	TEST_ENV=local RUN_NEGATIVE=true DB_CHECK_MODE=docker bash "${ROOT_DIR}/tests/cross-service/run-cross-service.sh"
+	if python3 -m pytest --version >/dev/null 2>&1; then
+		TEST_ENV=local DB_CHECK_MODE=docker PROFILE_POSTGRES_CONTAINER="${PROFILE_POSTGRES_CONTAINER:-profile-postgres}" \
+			python3 -m pytest "${ROOT_DIR}/tests/cross-service" -vv -s --tb=short --capture=no --color=yes
+	else
+		echo "[test-local] pytest not found, using direct Python execution"
+		TEST_ENV=local DB_CHECK_MODE=docker PROFILE_POSTGRES_CONTAINER="${PROFILE_POSTGRES_CONTAINER:-profile-postgres}" \
+			python3 "${ROOT_DIR}/tests/cross-service/test_e2e.py"
+		TEST_ENV=local DB_CHECK_MODE=docker PROFILE_POSTGRES_CONTAINER="${PROFILE_POSTGRES_CONTAINER:-profile-postgres}" \
+			python3 "${ROOT_DIR}/tests/cross-service/test_e2e_negative.py"
+	fi
 }
 
 if [[ "${TEST_SCOPE}" == "services" ]]; then

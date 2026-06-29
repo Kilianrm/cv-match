@@ -196,7 +196,7 @@ def seed_files(seed_dir: Path) -> list[Path]:
 def run() -> int:
     args = parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve().parents[2]
 
     reference_seed_dir = Path(args.reference_seed_dir)
     if not reference_seed_dir.is_absolute():
