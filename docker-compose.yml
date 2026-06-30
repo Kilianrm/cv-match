@@ -1,24 +1,39 @@
 services:
-  gateway-service:
+  frontend:
     build:
-      context: ./services/gateway-service
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: frontend:local
+    container_name: frontend
+    env_file:
+      - ./frontend/.env.local        # loads Cognito/auth vars from your local env file
+    environment:
+      API_GATEWAY_BASE_URL: http://gateway:8000   # overrides localhost URL ? containers use service name
+    ports:
+      - "3000:3000"
+    depends_on:
+      - gateway
+
+  gateway:
+    build:
+      context: ./services/gateway
       dockerfile: docker/Dockerfile
-    image: gateway-service:local
-    container_name: gateway-service
+    image: gateway:local
+    container_name: gateway
     environment:
       LOCAL_AUTH_BYPASS: "true"
-      PROFILE_SERVICE_URL: http://profile-service:8080
+      PROFILE_SERVICE_URL: http://profile:8080
     ports:
       - "8000:8000"
     depends_on:
-      - profile-service
+      - profile
 
-  profile-service:
+  profile:
     build:
-      context: ./services/profile-service
+      context: ./services/profile
       dockerfile: docker/Dockerfile
-    image: profile-service:local
-    container_name: profile-service
+    image: profile:local
+    container_name: profile
     environment:
       DATABASE_URL: postgresql://profile_user:profile_pass@postgres:5432/profile_db
       AWS_ENDPOINT_URL: http://localstack:4566
