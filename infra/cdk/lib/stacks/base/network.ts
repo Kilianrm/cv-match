@@ -72,6 +72,13 @@ export class NetworkStack extends Stack {
       privateDnsEnabled: true,
     });
 
+    this.vpc.addInterfaceEndpoint('CognitoIdpEndpoint', {
+      service: ec2.InterfaceVpcEndpointAwsService.COGNITO_IDP,
+      subnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [endpointSecurityGroup],
+      privateDnsEnabled: true,
+    });
+
     this.vpc.addGatewayEndpoint('S3GatewayEndpoint', {
       service: ec2.GatewayVpcEndpointAwsService.S3,
       subnets: [{ subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS }],

@@ -52,7 +52,7 @@ export class ProfileServiceStack extends Stack {
 
     applyConventions(props.foundation, 'profile', this);
 
-    const imageDirectory = props.serviceImageDirectory ?? findRepoPath('services', 'profile-service');
+    const imageDirectory = props.serviceImageDirectory ?? findRepoPath('services', 'profile');
     const servicePort = props.servicePort ?? 8080;
 
     const cluster = new ecs.Cluster(this, 'ProfileCluster', {

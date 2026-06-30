@@ -48,7 +48,7 @@ export class GatewayServiceStack extends Stack {
 
     applyConventions(props.foundation, 'gateway', this);
 
-    const imageDirectory = props.serviceImageDirectory ?? findRepoPath('services', 'gateway-service');
+    const imageDirectory = props.serviceImageDirectory ?? findRepoPath('services', 'gateway');
     const servicePort = props.servicePort ?? 8000;
 
     const cluster = new ecs.Cluster(this, 'GatewayCluster', {

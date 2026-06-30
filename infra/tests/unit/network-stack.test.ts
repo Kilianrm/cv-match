@@ -22,7 +22,7 @@ test('network stack creates the vpc and subnet baseline', () => {
 	template.resourceCountIs('AWS::EC2::InternetGateway', 1);
 	template.resourceCountIs('AWS::EC2::NatGateway', 0);
 	template.resourceCountIs('AWS::EC2::Subnet', 6);
-	template.resourceCountIs('AWS::EC2::SecurityGroup', 0);
+	template.resourceCountIs('AWS::EC2::SecurityGroup', 1);
 	template.hasOutput('VpcId', {
 		Value: Match.anyValue(),
 	});

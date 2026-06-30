@@ -257,14 +257,19 @@ fi
 
 profile_stack_name="${APP_NAME}-${STAGE}-profile"
 gateway_stack_name="${APP_NAME}-${STAGE}-gateway"
+data_stack_name="${APP_NAME}-${STAGE}-data"
 profile_selected="false"
 gateway_selected="false"
+data_selected="false"
 for stack in "${selected_stacks[@]}"; do
 	if [[ "${stack}" == "${profile_stack_name}" ]]; then
 		profile_selected="true"
 	fi
 	if [[ "${stack}" == "${gateway_stack_name}" ]]; then
 		gateway_selected="true"
+	fi
+	if [[ "${stack}" == "${data_stack_name}" ]]; then
+		data_selected="true"
 	fi
 done
 
@@ -280,6 +285,24 @@ resolve_profile_service_url() {
 	if [[ -z "${url}" || "${url}" == "None" ]]; then
 		echo "Failed to resolve ProfileServiceUrl from ${stack_name}" >&2
 		exit 1
+	fi
+
+	echo "${url}"
+}
+
+try_resolve_profile_service_url() {
+	local stack_name="$1"
+	local url
+	if ! url="$(aws cloudformation describe-stacks \
+		--stack-name "${stack_name}" \
+		--region "${REGION}" \
+		--query "Stacks[0].Outputs[?OutputKey=='ProfileServiceUrl'].OutputValue | [0]" \
+		--output text 2>/dev/null)"; then
+		return 1
+	fi
+
+	if [[ -z "${url}" || "${url}" == "None" ]]; then
+		return 1
 	fi
 
 	echo "${url}"
@@ -340,6 +363,18 @@ if [[ "${OPERATION}" == "deploy" ]]; then
 		log "deploying gateway stack with resolved profile url: ${gateway_only_stacks[*]}"
 		deploy_cdk_stacks "${profile_service_url_override}" "${gateway_only_stacks[@]}"
 		log "gateway stack deployment complete"
+	elif [[ -z "${profile_service_url_override}" && "${profile_selected}" != "true" && "${gateway_selected}" == "true" ]]; then
+		if profile_service_url_override="$(try_resolve_profile_service_url "${profile_stack_name}")"; then
+			log "resolved existing profile service url from ${profile_stack_name}: ${profile_service_url_override}"
+		else
+			echo "Gateway stack requires PROFILE_SERVICE_BASE_URL when profile stack is not selected and ${profile_stack_name} is not deployed." >&2
+			echo "Either include 'profile' in DEPLOY_STACKS or provide PROFILE_SERVICE_BASE_URL." >&2
+			exit 1
+		fi
+
+		log "deploying selected stacks: ${selected_stacks[*]}"
+		deploy_cdk_stacks "${profile_service_url_override}" "${selected_stacks[@]}"
+		log "selected stack deployment complete"
 	else
 		log "deploying selected stacks: ${selected_stacks[*]}"
 		deploy_cdk_stacks "${profile_service_url_override}" "${selected_stacks[@]}"
@@ -371,22 +406,26 @@ else
 	fi
 fi
 
-if [[ "${OPERATION}" == "deploy" && "${RUN_BOOTSTRAP}" == "true" ]]; then
+if [[ "${OPERATION}" == "deploy" && "${RUN_BOOTSTRAP}" == "true" && "${data_selected}" == "true" ]]; then
 	CURRENT_STEP="bootstrapping database"
 	log "bootstrapping database (seed scope: ${SEED_SCOPE})"
-	APP_NAME="${APP_NAME}" STAGE="${STAGE}" AWS_REGION="${REGION}" SEED_SCOPE="${SEED_SCOPE}" "${ROOT_DIR}/scripts/bootstrap-dev-db.sh"
+	APP_NAME="${APP_NAME}" STAGE="${STAGE}" AWS_REGION="${REGION}" SEED_SCOPE="${SEED_SCOPE}" "${ROOT_DIR}/scripts/support/bootstrap-dev-db.sh"
 	log "database bootstrap complete"
 elif [[ "${OPERATION}" == "deploy" && "${RUN_BOOTSTRAP}" == "false" ]]; then
 	log "skipping database bootstrap"
+elif [[ "${OPERATION}" == "deploy" && "${data_selected}" != "true" ]]; then
+	log "skipping database bootstrap (data stack not selected)"
 fi
 
-if [[ "${OPERATION}" == "deploy" && "${RUN_VERIFY}" == "true" ]]; then
+if [[ "${OPERATION}" == "deploy" && "${RUN_VERIFY}" == "true" && "${data_selected}" == "true" ]]; then
 	CURRENT_STEP="verifying bootstrap"
 	log "verifying bootstrap"
 	APP_NAME="${APP_NAME}" STAGE="${STAGE}" AWS_REGION="${REGION}" "${ROOT_DIR}/tests/integration/bootstrap-dev-db.test.sh"
 	log "bootstrap verification complete"
 elif [[ "${OPERATION}" == "deploy" && "${RUN_VERIFY}" == "false" ]]; then
 	log "skipping bootstrap verification"
+elif [[ "${OPERATION}" == "deploy" && "${data_selected}" != "true" ]]; then
+	log "skipping bootstrap verification (data stack not selected)"
 fi
 
 CURRENT_STEP="done"

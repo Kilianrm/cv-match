@@ -128,7 +128,6 @@ export function deployFoundation(app: App, options: FoundationAppOptions = {}) {
   if (security) {
     gatewayService.addDependency(security);
   }
-  gatewayService.addDependency(data);
 
   return { network, security, data, auth, profileService, gatewayService, config };
 }
