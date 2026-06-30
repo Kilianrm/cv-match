@@ -3,14 +3,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-SYNC_SCRIPT="${ROOT_DIR}/scripts/support/sync-frontend-auth-dev.sh"
+SYNC_SCRIPT="${ROOT_DIR}/scripts/support/sync-frontend-env-dev.sh"
 CDK_DIR="${ROOT_DIR}/infra/cdk"
 
 APP_NAME="${APP_NAME:-cv-match}"
 STAGE="${STAGE:-dev}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 LOCAL_FRONTEND_BASE_URL="${LOCAL_FRONTEND_BASE_URL:-http://localhost:3000}"
-FRONTEND_ENV_FILE="${FRONTEND_ENV_FILE:-${ROOT_DIR}/frontend/.env.aws-dev}"
+FRONTEND_ENV_FILE="${FRONTEND_ENV_FILE:-${ROOT_DIR}/frontend/.env.dev}"
 CDK_ENTRYPOINT="${CDK_DIR}/dist/bin/cdk.js"
 
 log() {

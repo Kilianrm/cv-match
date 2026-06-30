@@ -21,7 +21,7 @@ This folder contains the root local orchestration scripts.
 
 **Check Infrastructure local validation**
 ```bash
-./scripts/test-dev.sh
+./scripts/dev.sh --action test
 ```
 
 
@@ -79,22 +79,45 @@ Notes:
 - `cross-service` runs all tests under `tests/cross-service` directly via `python3 -m pytest`
 - `cross-service` requires the cross-service stack to be running first
 
-## deploy-dev.sh
+## dev.sh
 
-Use this script from the repository root to orchestrate AWS dev infrastructure deployment.
+Use this script from the repository root to orchestrate AWS dev infrastructure deployment and infrastructure tests.
 
 Basic usage:
 
 ```bash
-./scripts/deploy-dev.sh [--destroy|--destroy-all]
+./scripts/dev.sh --action <deploy|destroy|test> [--stack <stack>] [--suite <suite>]
 ```
 
 Examples:
 
 ```bash
-./scripts/deploy-dev.sh
-./scripts/deploy-dev.sh --destroy
-./scripts/deploy-dev.sh --destroy-all
+./scripts/dev.sh --action deploy --stack gateway
+./scripts/dev.sh --action deploy --stack full
+./scripts/dev.sh --action destroy --stack profile
+./scripts/dev.sh --action destroy --stack full
+./scripts/dev.sh --action test
+./scripts/dev.sh --action test --suite infra
+./scripts/dev.sh --action test --stack full --suite smoke
+```
+
+Notes:
+
+- `test --suite infra` runs CDK unit tests (no deployed infra required)
+- `test --suite smoke` validates against already deployed infra and requires `--stack`
+- `--stack` accepts `network`, `security`, `auth`, `data`, `gateway`, `profile`, or `full`
+- `--suite` accepts `infra` or `smoke` and is valid only with `--action test`
+- `--action deploy` requires `--stack`
+- `--action destroy` requires `--stack`
+
+## deploy-dev.sh
+
+Compatibility wrapper for `./scripts/dev.sh`.
+
+Basic usage:
+
+```bash
+./scripts/deploy-dev.sh [--destroy|--destroy-all]
 ```
 
 ## support/deploy-frontend-auth-dev.sh
@@ -120,13 +143,13 @@ Notes:
 - this is a support-only conceptual testing workflow
 - it forces `DEPLOY_STACKS=network,auth`
 - it deploys directly from `infra/cdk` instead of using the broader infra workflow
-- it runs auth-only frontend env sync from `scripts/support/sync-frontend-auth-dev.sh`
+- it runs frontend env sync from `scripts/support/sync-frontend-env-dev.sh`
 - it preserves existing gateway env values if they are already present in the frontend env file
 
 
 ## test-dev.sh
 
-Use this script from the repository root to run infrastructure validation for the dev workflow.
+Compatibility wrapper for `./scripts/dev.sh --action test`.
 
 Basic usage:
 
@@ -143,7 +166,5 @@ Examples:
 
 Notes:
 
-- delegates to `infra/scripts/test-infra.sh`
-- runs CDK unit tests from `infra/cdk`
 - accepts only help flags (`-h`, `--help`, `help`)
 

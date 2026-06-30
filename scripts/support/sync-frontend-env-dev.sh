@@ -5,7 +5,8 @@ APP_NAME="${APP_NAME:-cv-match}"
 STAGE="${STAGE:-dev}"
 REGION="${AWS_REGION:-us-east-1}"
 LOCAL_FRONTEND_BASE_URL="${LOCAL_FRONTEND_BASE_URL:-http://localhost:3000}"
-FRONTEND_ENV_FILE="${FRONTEND_ENV_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/frontend/.env.aws-dev}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+FRONTEND_ENV_FILE="${FRONTEND_ENV_FILE:-${ROOT_DIR}/frontend/.env.dev}"
 
 LOCAL_FRONTEND_BASE_URL="${LOCAL_FRONTEND_BASE_URL%/}"
 

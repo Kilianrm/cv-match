@@ -1,21 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Single integration test for dev DB bootstrap.
-# It executes bootstrap and validates representative seeded records.
+# Integration validation for deployed dev DB data.
+# It does not execute bootstrap; it only validates current data.
 
 APP_NAME="${APP_NAME:-cv-match}"
 STAGE="${STAGE:-dev}"
 REGION="${AWS_REGION:-us-east-1}"
 STACK_NAME="${STACK_NAME:-${APP_NAME}-${STAGE}-data}"
-
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-BOOTSTRAP_SCRIPT="${ROOT_DIR}/scripts/bootstrap-dev-db.sh"
-
-if [[ ! -f "${BOOTSTRAP_SCRIPT}" ]]; then
-  echo "bootstrap script not found: ${BOOTSTRAP_SCRIPT}" >&2
-  exit 1
-fi
 
 if ! command -v aws >/dev/null 2>&1; then
   echo "aws CLI is required" >&2
@@ -26,9 +18,6 @@ if ! command -v python3 >/dev/null 2>&1; then
   echo "python3 is required" >&2
   exit 1
 fi
-
-echo "[test] running bootstrap"
-APP_NAME="${APP_NAME}" STAGE="${STAGE}" AWS_REGION="${REGION}" STACK_NAME="${STACK_NAME}" SEED_SCOPE="reference" "${BOOTSTRAP_SCRIPT}"
 
 DB_ENDPOINT="$(aws cloudformation describe-stacks \
   --stack-name "${STACK_NAME}" \

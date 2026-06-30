@@ -3,6 +3,16 @@ set -euo pipefail
 
 # Bootstraps schema and seed catalogs in AWS dev RDS.
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/..") && pwd)"
+
+# Load root .env.dev if present (values only apply when not already set in the environment)
+if [[ -f "${ROOT_DIR}/.env.dev" ]]; then
+	set -a
+	# shellcheck source=/dev/null
+	source "${ROOT_DIR}/.env.dev"
+	set +a
+fi
+
 APP_NAME="${APP_NAME:-cv-match}"
 STAGE="${STAGE:-dev}"
 REGION="${AWS_REGION:-us-east-1}"
@@ -10,7 +20,7 @@ STACK_NAME="${STACK_NAME:-${APP_NAME}-${STAGE}-data}"
 SEED_SCOPE="${SEED_SCOPE:-reference}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BOOTSTRAP_SCRIPT="${ROOT_DIR}/scripts/bootstrap_schema.py"
+BOOTSTRAP_SCRIPT="${ROOT_DIR}/support/bootstrap_schema.py"
 
 if [[ ! -f "${BOOTSTRAP_SCRIPT}" ]]; then
   echo "bootstrap script not found: ${BOOTSTRAP_SCRIPT}" >&2
