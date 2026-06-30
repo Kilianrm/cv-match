@@ -19,11 +19,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const storedState = cookieStore.get("cv_oauth_state")?.value;
   const codeVerifier = cookieStore.get("cv_pkce_verifier")?.value;
 
-  if (!code || !returnedState || !storedState || returnedState !== storedState || !codeVerifier) {
-    return NextResponse.redirect(new URL("/?error=auth_state", request.url));
-  }
-
+  // Derive the app base URL from AUTH_REDIRECT_URI to avoid inheriting
+  // 0.0.0.0 when Next.js binds to all interfaces during local dev.
   const auth = getAuthConfig();
+  const appBase = new URL(auth.redirectUri).origin;
+
+  if (!code || !returnedState || !storedState || returnedState !== storedState || !codeVerifier) {
+    return NextResponse.redirect(new URL("/?error=auth_state", appBase));
+  }
 
   const body = new URLSearchParams();
   body.set("grant_type", "authorization_code");
@@ -39,11 +42,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   });
 
   if (!tokenResponse.ok) {
-    return NextResponse.redirect(new URL("/?error=auth_token", request.url));
+    return NextResponse.redirect(new URL("/?error=auth_token", appBase));
   }
 
   const tokenPayload = (await tokenResponse.json()) as TokenResponse;
-  const response = NextResponse.redirect(new URL("/dashboard", request.url));
+  const response = NextResponse.redirect(new URL("/dashboard", appBase));
 
   response.cookies.set("cv_access_token", tokenPayload.access_token, {
     httpOnly: true,
