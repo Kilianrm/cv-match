@@ -2,6 +2,10 @@
 
 This project implements roadmap step 1: bootstrap-ready CDK foundation with stack boundaries and environment conventions.
 
+## Stack Dependencies
+
+- See `STACK_DEPENDENCY_GRAPH.md` for the current stack dependency graph.
+
 ## Foundation Boundaries
 
 - network
