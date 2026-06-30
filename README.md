@@ -19,6 +19,21 @@ Expect ongoing changes in architecture, automation scripts, and documentation wh
 - Cross-service end-to-end checks for critical user journeys.
 - Infrastructure as Code foundations for AWS deployment.
 
+## Prerequisites
+
+Before using the root Makefile workflow, complete these steps:
+
+1. Bootstrap your AWS account and region for CDK:
+	1. Follow the bootstrap guidance in [infra/cdk/README.md](infra/cdk/README.md).
+2. Configure your local frontend setup:
+	1. Follow [frontend/README.md](frontend/README.md).
+3. Configure AWS credentials on your machine:
+	1. Make sure your AWS CLI credentials/profile are set and valid for the target account.
+4. Prepare the root dev environment file:
+	1. Run `cp .env.dev.example .env.dev`.
+
+After these prerequisites are complete, you are ready to use the Makefile commands.
+
 ## Local Development
 
 Use the root Makefile as the main entry point.
