@@ -5,11 +5,17 @@ This module exposes:
 - Internal endpoints for CV upload, user sync, and profile upsert.
 """
 
+import contextvars
+import json
 import logging
+import time
 from typing import Optional
+from uuid import uuid4
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from psycopg.errors import UndefinedColumn, UndefinedTable
 
 
 from src.shared.config import settings
@@ -23,16 +29,196 @@ from src.modules.catalogs.roles_store import RolesStore
 from src.modules.catalogs.skills_store import SkillsStore
 from src.modules.profile.profile_store import ProfileStore
 from src.modules.users.users_store import UsersStore
-logging.basicConfig(
-    level=settings.log_level,
-    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-)
+
+REQUEST_ID_HEADER = "x-request-id"
+TRACE_ID_HEADER = "x-trace-id"
+
+_request_id_ctx: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
+_trace_id_ctx: contextvars.ContextVar[str] = contextvars.ContextVar("trace_id", default="-")
+
+
+class RequestContextFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.request_id = _request_id_ctx.get()
+        record.trace_id = _trace_id_ctx.get()
+        return True
+
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "timestamp": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
+            "level": record.levelname,
+            "service_name": settings.service_name,
+            "environment": settings.environment,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "request_id": getattr(record, "request_id", "-"),
+            "trace_id": getattr(record, "trace_id", "-"),
+        }
+
+        optional_fields = (
+            "event",
+            "method",
+            "path",
+            "status_code",
+            "duration_ms",
+            "client_ip",
+            "user_agent",
+            "user_id",
+            "storage_key",
+            "size_bytes",
+            "user_created",
+        )
+        for field in optional_fields:
+            value = getattr(record, field, None)
+            if value is not None:
+                payload[field] = value
+
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
+
+        return json.dumps(payload, default=str)
+
+
+def configure_logging() -> None:
+    root = logging.getLogger()
+    root.handlers.clear()
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(JsonFormatter())
+    handler.addFilter(RequestContextFilter())
+
+    root.addHandler(handler)
+    root.setLevel(getattr(logging, settings.log_level.upper(), logging.INFO))
+
+
+def _new_correlation_id() -> str:
+    return str(uuid4())
+
+
+def _should_log_request_completion(path: str, status_code: int) -> bool:
+    # Suppress high-frequency ALB health-check noise while preserving failures.
+    return not (path == "/health" and status_code < 400)
+
+
+configure_logging()
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title=settings.service_name,
     description="Internal profile-service API.",
     version="0.1.0",
 )
+
+
+def _database_bootstrap_error_response(request: Request, exc: Exception) -> JSONResponse:
+    diag = getattr(exc, "diag", None)
+    table_name = getattr(diag, "table_name", None)
+    column_name = getattr(diag, "column_name", None)
+
+    logger.error(
+        "database bootstrap or schema migration is incomplete",
+        exc_info=(type(exc), exc, exc.__traceback__),
+        extra={
+            "event": "database_bootstrap_incomplete",
+            "method": request.method,
+            "path": request.url.path,
+        },
+    )
+
+    missing_parts = [part for part in (table_name, column_name) if part]
+    missing_label = ".".join(missing_parts) if missing_parts else None
+    detail = "Database schema is not ready. Run the bootstrap step before calling this API."
+    if missing_label:
+        detail = f"{detail} Missing database object: {missing_label}."
+
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": detail,
+            "error_code": "database_bootstrap_incomplete",
+        },
+    )
+
+
+@app.exception_handler(UndefinedTable)
+async def undefined_table_handler(request: Request, exc: UndefinedTable) -> JSONResponse:
+    return _database_bootstrap_error_response(request, exc)
+
+
+@app.exception_handler(UndefinedColumn)
+async def undefined_column_handler(request: Request, exc: UndefinedColumn) -> JSONResponse:
+    return _database_bootstrap_error_response(request, exc)
+
+
+def _bootstrap_readiness_snapshot() -> dict:
+    try:
+        countries_store.get_countries(limit=1)
+    except (UndefinedTable, UndefinedColumn):
+        return {
+            "ready": False,
+            "error_code": "database_bootstrap_incomplete",
+        }
+
+    return {
+        "ready": True,
+        "error_code": None,
+    }
+
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    request_id = request.headers.get(REQUEST_ID_HEADER) or _new_correlation_id()
+    trace_id = request.headers.get(TRACE_ID_HEADER) or request_id
+
+    request_id_token = _request_id_ctx.set(request_id)
+    trace_id_token = _trace_id_ctx.set(trace_id)
+
+    started_at = time.perf_counter()
+    response = None
+    status_code = 500
+
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    except Exception:
+        logger.exception(
+            "request failed with unhandled error",
+            extra={
+                "event": "request_error",
+                "method": request.method,
+                "path": request.url.path,
+            },
+        )
+        raise
+    finally:
+        duration_ms = int((time.perf_counter() - started_at) * 1000)
+        client_ip = request.client.host if request.client else None
+
+        if _should_log_request_completion(request.url.path, status_code):
+            logger.info(
+                "request completed",
+                extra={
+                    "event": "request_complete",
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status_code": status_code,
+                    "duration_ms": duration_ms,
+                    "client_ip": client_ip,
+                    "user_agent": request.headers.get("user-agent"),
+                },
+            )
+
+        if response is not None:
+            response.headers[REQUEST_ID_HEADER] = request_id
+            response.headers[TRACE_ID_HEADER] = trace_id
+
+        _request_id_ctx.reset(request_id_token)
+        _trace_id_ctx.reset(trace_id_token)
+
+
 storage = S3Storage()
 users_store = UsersStore(settings.database_url)
 profile_store = ProfileStore(settings.database_url)
@@ -217,6 +403,7 @@ async def health() -> dict:
         "service": settings.service_name,
         "status": "ok",
         "cv_bucket": settings.cv_bucket_name,
+        "bootstrap": _bootstrap_readiness_snapshot(),
     }
 
 
@@ -244,6 +431,16 @@ async def upload_cv(user_id: str, file: UploadFile = File(...)) -> dict:
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    logger.info(
+        "cv upload accepted",
+        extra={
+            "event": "cv_upload",
+            "user_id": user_id,
+            "storage_key": object_key,
+            "size_bytes": len(content),
+        },
+    )
 
     return {
         "status": "accepted",
@@ -296,6 +493,14 @@ async def delete_cv(user_id: str) -> dict:
         storage.delete_object(storage_key)
 
     profile_store.deactivate_active_cv(user_id)
+    logger.info(
+        "cv deleted",
+        extra={
+            "event": "cv_delete",
+            "user_id": user_id,
+            "storage_key": storage_key,
+        },
+    )
     return {"status": "deleted", "cv_id": cv_record.get("id")}
 
 
@@ -306,6 +511,14 @@ async def delete_cv(user_id: str) -> dict:
 )
 async def sync_from_jwt(payload: SyncFromJwtRequest) -> dict:
     result = users_store.sync_from_jwt(payload.issuer, payload.sub, payload.email)
+    logger.info(
+        "user sync completed",
+        extra={
+            "event": "user_sync",
+            "user_id": result.internal_user_id,
+            "user_created": result.created,
+        },
+    )
     return {
         "status": "accepted",
         "user_id": result.internal_user_id,

@@ -5,6 +5,7 @@ import os
 @dataclass(frozen=True)
 class Settings:
     service_name: str = os.getenv("SERVICE_NAME", "gateway")
+    environment: str = os.getenv("ENVIRONMENT", "dev")
     service_port: int = int(os.getenv("SERVICE_PORT", "8000"))
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
 

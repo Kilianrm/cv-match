@@ -51,8 +51,8 @@ class ProfileSchemaMixin:
                                 location TEXT,
                                 summary TEXT,
                                 country_code VARCHAR(2),
-                                region_id UUID REFERENCES regions(id),
-                                city_id UUID REFERENCES cities(id),
+                                region_id UUID,
+                                city_id UUID,
                                 years_experience INTEGER,
                                 work_mode_preference TEXT,
                                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -65,7 +65,7 @@ class ProfileSchemaMixin:
                             CREATE TABLE IF NOT EXISTS profile_skills (
                                 id UUID PRIMARY KEY,
                                 profile_id UUID NOT NULL REFERENCES profiles(user_id) ON DELETE CASCADE,
-                                skill_id UUID NOT NULL REFERENCES skills(id),
+                                skill_id UUID NOT NULL,
                                 proficiency_level TEXT,
                                 sort_order INTEGER NOT NULL DEFAULT 0,
                                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -79,7 +79,7 @@ class ProfileSchemaMixin:
                             CREATE TABLE IF NOT EXISTS profile_preferred_roles (
                                 id UUID PRIMARY KEY,
                                 profile_id UUID NOT NULL REFERENCES profiles(user_id) ON DELETE CASCADE,
-                                role_id UUID REFERENCES roles(id),
+                                role_id UUID,
                                 role_name TEXT NOT NULL,
                                 normalized_role TEXT NOT NULL,
                                 sort_order INTEGER NOT NULL DEFAULT 0,
@@ -111,7 +111,7 @@ class ProfileSchemaMixin:
                             CREATE TABLE IF NOT EXISTS profile_education (
                                 id UUID PRIMARY KEY,
                                 profile_id UUID NOT NULL REFERENCES profiles(user_id) ON DELETE CASCADE,
-                                degree_type_id UUID REFERENCES degree_types(id),
+                                degree_type_id UUID,
                                 degree TEXT NOT NULL,
                                 institution TEXT NOT NULL,
                                 start_date DATE,
@@ -156,6 +156,73 @@ class ProfileSchemaMixin:
                             """
                             DO $$
                             BEGIN
+                                IF to_regclass('public.regions') IS NULL THEN
+                                    RETURN;
+                                END IF;
+
+                                IF NOT EXISTS (
+                                    SELECT 1
+                                    FROM pg_constraint
+                                    WHERE conname = 'profiles_region_id_fkey'
+                                ) THEN
+                                    ALTER TABLE profiles
+                                    ADD CONSTRAINT profiles_region_id_fkey
+                                    FOREIGN KEY (region_id) REFERENCES regions(id);
+                                END IF;
+                            END
+                            $$
+                            """
+                        )
+                        cur.execute(
+                            """
+                            DO $$
+                            BEGIN
+                                IF to_regclass('public.cities') IS NULL THEN
+                                    RETURN;
+                                END IF;
+
+                                IF NOT EXISTS (
+                                    SELECT 1
+                                    FROM pg_constraint
+                                    WHERE conname = 'profiles_city_id_fkey'
+                                ) THEN
+                                    ALTER TABLE profiles
+                                    ADD CONSTRAINT profiles_city_id_fkey
+                                    FOREIGN KEY (city_id) REFERENCES cities(id);
+                                END IF;
+                            END
+                            $$
+                            """
+                        )
+                        cur.execute(
+                            """
+                            DO $$
+                            BEGIN
+                                IF to_regclass('public.skills') IS NULL THEN
+                                    RETURN;
+                                END IF;
+
+                                IF NOT EXISTS (
+                                    SELECT 1
+                                    FROM pg_constraint
+                                    WHERE conname = 'profile_skills_skill_id_fkey'
+                                ) THEN
+                                    ALTER TABLE profile_skills
+                                    ADD CONSTRAINT profile_skills_skill_id_fkey
+                                    FOREIGN KEY (skill_id) REFERENCES skills(id);
+                                END IF;
+                            END
+                            $$
+                            """
+                        )
+                        cur.execute(
+                            """
+                            DO $$
+                            BEGIN
+                                IF to_regclass('public.roles') IS NULL THEN
+                                    RETURN;
+                                END IF;
+
                                 IF NOT EXISTS (
                                     SELECT 1
                                     FROM pg_constraint
@@ -173,6 +240,10 @@ class ProfileSchemaMixin:
                             """
                             DO $$
                             BEGIN
+                                IF to_regclass('public.degree_types') IS NULL THEN
+                                    RETURN;
+                                END IF;
+
                                 IF NOT EXISTS (
                                     SELECT 1
                                     FROM pg_constraint

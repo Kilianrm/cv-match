@@ -6,6 +6,7 @@ import os
 @dataclass(frozen=True)
 class Settings:
     service_name: str = os.getenv("SERVICE_NAME", "profile-service")
+    environment: str = os.getenv("ENVIRONMENT", "dev")
     service_port: int = int(os.getenv("SERVICE_PORT", "8080"))
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
     postgres_host: str = os.getenv("POSTGRES_HOST", "postgres")

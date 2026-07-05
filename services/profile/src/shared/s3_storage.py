@@ -36,8 +36,23 @@ class S3Storage:
             Body=content,
             ContentType=content_type or "application/octet-stream",
         )
+        logger.info(
+            "s3 upload completed",
+            extra={
+                "event": "s3_upload",
+                "storage_key": object_key,
+                "size_bytes": len(content),
+            },
+        )
         return object_key
 
     def delete_object(self, object_key: str) -> None:
         self.ensure_bucket()
         self._s3.delete_object(Bucket=settings.cv_bucket_name, Key=object_key)
+        logger.info(
+            "s3 delete completed",
+            extra={
+                "event": "s3_delete",
+                "storage_key": object_key,
+            },
+        )
