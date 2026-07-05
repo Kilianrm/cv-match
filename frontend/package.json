@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:local": "dotenv -e .env.local -- next dev",
-    "dev:dev": "dotenv -e .env.dev -- next dev",
+    "dev:dev": "bash ./scripts/dev-dev.sh",
     "build": "next build",
     "build:dev": "dotenv -e .env.dev -- next build",
     "start": "next start",

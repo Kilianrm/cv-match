@@ -65,7 +65,7 @@ npm run dev:local   # loads .env.local
 
 ```bash
 npm install
-npm run dev:dev   # loads .env.local
+npm run dev:dev   # enforces .env.dev (temporarily ignores .env.local)
 ```
 
 Open http://localhost:3000.
@@ -76,11 +76,11 @@ Open http://localhost:3000.
 |---|---|---|
 | `npm run dev` | `.env.local` (Next.js default) | Standard local dev |
 | `npm run dev:local` | `.env.local` (explicit) | Local dev with explicit env |
-| `npm run dev:dev` | `.env.dev` | Dev/cloud env (Docker gateway URL) |
+| `npm run dev:dev` | `.env.dev` only (temporarily disables `.env.local`) | Dev/cloud env |
 | `npm run build` | `.env.local` | Production build (local) |
 | `npm run build:dev` | `.env.dev` | Production build for dev environment |
-| `npm run start` | ? | Start after build |
-| `npm run lint` | ? | Run ESLint |
+| `npm run start` | Build output env at runtime | Start production server after build |
+| `npm run lint` | n/a | Run ESLint |
 
 ## Architecture notes
 
