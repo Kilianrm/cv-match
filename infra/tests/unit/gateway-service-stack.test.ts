@@ -1,7 +1,8 @@
 import { App } from 'aws-cdk-lib';
-import { Template } from 'aws-cdk-lib/assertions';
+import { Match, Template } from 'aws-cdk-lib/assertions';
 
 import { NetworkStack } from '../../cdk/lib/stacks/base/network';
+import { ComputeStack } from '../../cdk/lib/stacks/shared/compute';
 import { GatewayServiceStack } from '../../cdk/lib/stacks/services/gateway';
 
 test('gateway service stack is compatible with the network stack vpc', () => {
@@ -17,6 +18,16 @@ test('gateway service stack is compatible with the network stack vpc', () => {
 		},
 	});
 
+	const compute = new ComputeStack(app, 'cv-match-dev-compute', {
+		env,
+		foundation: {
+			appName: 'cv-match',
+			stage: 'dev',
+			env,
+		},
+		vpc: network.vpc,
+	});
+
 	const stack = new GatewayServiceStack(app, 'cv-match-dev-gateway', {
 		env,
 		foundation: {
@@ -25,6 +36,7 @@ test('gateway service stack is compatible with the network stack vpc', () => {
 			env,
 		},
 		vpc: network.vpc,
+		cluster: compute.cluster,
 		profileServiceBaseUrl: 'http://profile-service:8080',
 	});
 
@@ -33,6 +45,9 @@ test('gateway service stack is compatible with the network stack vpc', () => {
 	template.resourceCountIs('AWS::ECS::Service', 1);
 	template.resourceCountIs('AWS::ElasticLoadBalancingV2::LoadBalancer', 1);
 	template.resourceCountIs('AWS::EC2::VPC', 0);
+	template.hasResourceProperties('AWS::ECS::Service', {
+		ServiceConnectConfiguration: Match.anyValue(),
+	});
 	template.hasOutput('GatewayServiceUrl', {
 		Description: 'Public URL for the gateway-service ALB in this environment.',
 	});

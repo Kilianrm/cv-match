@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Dev deployment workflow for cv-match foundation + DB bootstrap.
 #
-# Defaults are optimized for Step 4 (data flow):
+# Optional post-deploy actions for data flow:
 # 1) deploy base infra + shared infra stacks
 # 2) bootstrap schema/seeds
 # 3) verify bootstrap
@@ -14,35 +14,37 @@ set -euo pipefail
 # - AWS_REGION: deployment region (default: us-east-1)
 # - OPERATION: deploy|destroy (default: deploy)
 # - DESTROY_ALL: true|false (default: false)
-# - DEPLOY_STACKS: comma-separated stack selectors (default: network,security,data)
+# - DEPLOY_STACKS: comma-separated stack selectors (default: network,security,compute,data)
 #   Accepts full stack names (cv-match-dev-network), stack selectors (network), or file-style names (network.ts/network-stack.ts)
 # - USE_SHARED_SECURITY: true|false (default: true)
 # - PUBLIC_DB_ACCESS: true|false (default: true)
 # - PUBLIC_DB_ACCESS_CIDR: IPv4 CIDR allowed to connect to PostgreSQL when public DB access is enabled.
 #   If omitted and PUBLIC_DB_ACCESS=true, script resolves caller public IP and uses /32.
 # - PROFILE_SERVICE_BASE_URL: optional override for gateway -> profile-service calls.
-#   If omitted and both profile and gateway are selected, the script resolves the deployed profile URL.
+#   Default uses the ECS Service Connect client alias: http://profile-service:8080
 # - LOCAL_FRONTEND_BASE_URL: frontend URL used for Cognito callback/logout defaults (default: http://localhost:3000)
 # - COGNITO_DOMAIN_PREFIX: optional explicit Cognito Hosted UI domain prefix.
 # - SEED_SCOPE: reference|dev|all (default: reference)
-# - RUN_BOOTSTRAP: true|false (default: true)
-# - RUN_VERIFY: true|false (default: true)
+# - RUN_BOOTSTRAP: true|false (default: false)
+# - RUN_VERIFY: true|false (default: false)
+# - FORCE_DEPLOY: true|false (default: false). Adds `--force` to `cdk deploy`.
 
 APP_NAME="${APP_NAME:-cv-match}"
 STAGE="${STAGE:-dev}"
 REGION="${AWS_REGION:-us-east-1}"
 OPERATION="${OPERATION:-deploy}"
 DESTROY_ALL="${DESTROY_ALL:-false}"
-DEPLOY_STACKS="${DEPLOY_STACKS:-network,security,data}"
+DEPLOY_STACKS="${DEPLOY_STACKS:-network,security,compute,data}"
 USE_SHARED_SECURITY="${USE_SHARED_SECURITY:-true}"
 PUBLIC_DB_ACCESS="${PUBLIC_DB_ACCESS:-true}"
 PUBLIC_DB_ACCESS_CIDR="${PUBLIC_DB_ACCESS_CIDR:-}"
-PROFILE_SERVICE_BASE_URL="${PROFILE_SERVICE_BASE_URL:-}"
+PROFILE_SERVICE_BASE_URL="${PROFILE_SERVICE_BASE_URL:-http://profile-service:8080}"
 LOCAL_FRONTEND_BASE_URL="${LOCAL_FRONTEND_BASE_URL:-http://localhost:3000}"
 COGNITO_DOMAIN_PREFIX="${COGNITO_DOMAIN_PREFIX:-}"
 SEED_SCOPE="${SEED_SCOPE:-reference}"
-RUN_BOOTSTRAP="${RUN_BOOTSTRAP:-true}"
-RUN_VERIFY="${RUN_VERIFY:-true}"
+RUN_BOOTSTRAP="${RUN_BOOTSTRAP:-false}"
+RUN_VERIFY="${RUN_VERIFY:-false}"
+FORCE_DEPLOY="${FORCE_DEPLOY:-false}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -54,7 +56,7 @@ CURRENT_STEP="initializing"
 print_help() {
 	cat <<'EOF'
 Usage:
-	./scripts/deploy-dev.sh [--help] [--destroy] [--destroy-all]
+	./scripts/deploy-dev.sh [--help] [--destroy] [--destroy-all] [--force-deploy]
 
 This script is configured through environment variables.
 
@@ -64,27 +66,29 @@ Environment variables:
 	AWS_REGION      Deployment region (default: us-east-1)
 	OPERATION       deploy|destroy (default: deploy)
 	DESTROY_ALL     true|false (default: false)
-	DEPLOY_STACKS   Comma-separated stack names (default: network,security,data)
-									Accepts: network, security, data, auth, profile, gateway,
+	DEPLOY_STACKS   Comma-separated stack names (default: network,security,compute,data)
+									Accepts: network, security, compute, data, auth, profile, gateway,
 									file-style values (network.ts, network-stack.ts),
 									or full stack names (cv-match-dev-network)
 	USE_SHARED_SECURITY true|false (default: true)
 	PUBLIC_DB_ACCESS true|false (default: false)
 	PUBLIC_DB_ACCESS_CIDR IPv4 CIDR for PostgreSQL ingress when PUBLIC_DB_ACCESS=true
-	PROFILE_SERVICE_BASE_URL Optional gateway override for profile-service URL
+	PROFILE_SERVICE_BASE_URL Optional gateway override for profile-service URL (default: http://profile-service:8080)
 	LOCAL_FRONTEND_BASE_URL Frontend base URL for Cognito callback/logout (default: http://localhost:3000)
 	COGNITO_DOMAIN_PREFIX Optional explicit Cognito hosted domain prefix
 	SEED_SCOPE      reference|dev|all (default: reference)
-	RUN_BOOTSTRAP   true|false (default: true)
-	RUN_VERIFY      true|false (default: true)
+	RUN_BOOTSTRAP   true|false (default: false)
+	RUN_VERIFY      true|false (default: false)
+	FORCE_DEPLOY    true|false (default: false). Adds --force to cdk deploy.
 
 Examples:
 	./scripts/deploy-dev.sh
 	./scripts/deploy-dev.sh --destroy-all
-	DEPLOY_STACKS=network,security,data ./scripts/deploy-dev.sh
-	DEPLOY_STACKS=network,security,data,auth,profile,gateway ./scripts/deploy-dev.sh
-	PROFILE_SERVICE_BASE_URL=http://profile-service:8080 DEPLOY_STACKS=network,security,data,profile,gateway ./scripts/deploy-dev.sh
+	DEPLOY_STACKS=network,security,compute,data ./scripts/deploy-dev.sh
+	DEPLOY_STACKS=network,security,compute,data,auth,profile,gateway ./scripts/deploy-dev.sh
+	PROFILE_SERVICE_BASE_URL=http://profile-service:8080 DEPLOY_STACKS=network,security,compute,data,profile,gateway ./scripts/deploy-dev.sh
 	DEPLOY_STACKS=network RUN_BOOTSTRAP=false RUN_VERIFY=false ./scripts/deploy-dev.sh
+	DEPLOY_STACKS=full RUN_BOOTSTRAP=true RUN_VERIFY=true ./scripts/deploy-dev.sh
 	DEPLOY_STACKS=cv-match-dev-network ./scripts/deploy-dev.sh
 EOF
 }
@@ -101,6 +105,9 @@ for arg in "$@"; do
 		--destroy-all)
 			OPERATION="destroy"
 			DESTROY_ALL="true"
+			;;
+		--force-deploy)
+			FORCE_DEPLOY="true"
 			;;
 		*)
 			echo "Unsupported argument: ${arg}" >&2
@@ -124,7 +131,7 @@ on_error() {
 trap on_error ERR
 
 log "starting dev deployment workflow"
-log "config: app=${APP_NAME}, stage=${STAGE}, region=${REGION}, operation=${OPERATION}, destroy_all=${DESTROY_ALL}, deploy_stacks=${DEPLOY_STACKS}, use_shared_security=${USE_SHARED_SECURITY}, public_db_access=${PUBLIC_DB_ACCESS}, public_db_access_cidr=${PUBLIC_DB_ACCESS_CIDR:-auto}, profile_service_base_url=${PROFILE_SERVICE_BASE_URL:-auto}, local_frontend_base_url=${LOCAL_FRONTEND_BASE_URL}, cognito_domain_prefix=${COGNITO_DOMAIN_PREFIX:-auto}, seed_scope=${SEED_SCOPE}, run_bootstrap=${RUN_BOOTSTRAP}, run_verify=${RUN_VERIFY}"
+log "config: app=${APP_NAME}, stage=${STAGE}, region=${REGION}, operation=${OPERATION}, destroy_all=${DESTROY_ALL}, force_deploy=${FORCE_DEPLOY}, deploy_stacks=${DEPLOY_STACKS}, use_shared_security=${USE_SHARED_SECURITY}, public_db_access=${PUBLIC_DB_ACCESS}, public_db_access_cidr=${PUBLIC_DB_ACCESS_CIDR:-auto}, profile_service_base_url=${PROFILE_SERVICE_BASE_URL:-auto}, local_frontend_base_url=${LOCAL_FRONTEND_BASE_URL}, cognito_domain_prefix=${COGNITO_DOMAIN_PREFIX:-auto}, seed_scope=${SEED_SCOPE}, run_bootstrap=${RUN_BOOTSTRAP}, run_verify=${RUN_VERIFY}"
 
 validate_bool() {
 	local name="$1"
@@ -140,6 +147,7 @@ validate_bool "RUN_VERIFY" "${RUN_VERIFY}"
 validate_bool "DESTROY_ALL" "${DESTROY_ALL}"
 validate_bool "USE_SHARED_SECURITY" "${USE_SHARED_SECURITY}"
 validate_bool "PUBLIC_DB_ACCESS" "${PUBLIC_DB_ACCESS}"
+validate_bool "FORCE_DEPLOY" "${FORCE_DEPLOY}"
 
 if [[ "${PUBLIC_DB_ACCESS}" == "true" && "${STAGE}" != "dev" ]]; then
 	echo "PUBLIC_DB_ACCESS is only allowed when STAGE=dev" >&2
@@ -216,6 +224,9 @@ resolve_stack_name() {
 		security)
 			echo "${APP_NAME}-${STAGE}-security"
 			;;
+		compute)
+			echo "${APP_NAME}-${STAGE}-compute"
+			;;
 		data)
 			echo "${APP_NAME}-${STAGE}-data"
 			;;
@@ -255,58 +266,13 @@ if [[ ${#selected_stacks[@]} -eq 0 ]]; then
 	exit 1
 fi
 
-profile_stack_name="${APP_NAME}-${STAGE}-profile"
-gateway_stack_name="${APP_NAME}-${STAGE}-gateway"
 data_stack_name="${APP_NAME}-${STAGE}-data"
-profile_selected="false"
-gateway_selected="false"
 data_selected="false"
 for stack in "${selected_stacks[@]}"; do
-	if [[ "${stack}" == "${profile_stack_name}" ]]; then
-		profile_selected="true"
-	fi
-	if [[ "${stack}" == "${gateway_stack_name}" ]]; then
-		gateway_selected="true"
-	fi
 	if [[ "${stack}" == "${data_stack_name}" ]]; then
 		data_selected="true"
 	fi
 done
-
-resolve_profile_service_url() {
-	local stack_name="$1"
-	local url
-	url="$(aws cloudformation describe-stacks \
-		--stack-name "${stack_name}" \
-		--region "${REGION}" \
-		--query "Stacks[0].Outputs[?OutputKey=='ProfileServiceUrl'].OutputValue | [0]" \
-		--output text)"
-
-	if [[ -z "${url}" || "${url}" == "None" ]]; then
-		echo "Failed to resolve ProfileServiceUrl from ${stack_name}" >&2
-		exit 1
-	fi
-
-	echo "${url}"
-}
-
-try_resolve_profile_service_url() {
-	local stack_name="$1"
-	local url
-	if ! url="$(aws cloudformation describe-stacks \
-		--stack-name "${stack_name}" \
-		--region "${REGION}" \
-		--query "Stacks[0].Outputs[?OutputKey=='ProfileServiceUrl'].OutputValue | [0]" \
-		--output text 2>/dev/null)"; then
-		return 1
-	fi
-
-	if [[ -z "${url}" || "${url}" == "None" ]]; then
-		return 1
-	fi
-
-	echo "${url}"
-}
 
 deploy_cdk_stacks() {
 	local profile_url="$1"
@@ -329,6 +295,10 @@ deploy_cdk_stacks() {
 		-c localFrontendBaseUrl="${LOCAL_FRONTEND_BASE_URL}"
 	)
 
+	if [[ "${FORCE_DEPLOY}" == "true" ]]; then
+		cdk_args+=( --force )
+	fi
+
 	if [[ -n "${COGNITO_DOMAIN_PREFIX}" ]]; then
 		cdk_args+=( -c "cognitoDomainPrefix=${COGNITO_DOMAIN_PREFIX}" )
 	fi
@@ -342,44 +312,10 @@ deploy_cdk_stacks() {
 
 if [[ "${OPERATION}" == "deploy" ]]; then
 	profile_service_url_override="${PROFILE_SERVICE_BASE_URL}"
-	if [[ -z "${profile_service_url_override}" && "${profile_selected}" == "true" && "${gateway_selected}" == "true" ]]; then
-		profile_only_stacks=()
-		gateway_only_stacks=()
-		for stack in "${selected_stacks[@]}"; do
-			if [[ "${stack}" == "${gateway_stack_name}" ]]; then
-				gateway_only_stacks+=("${stack}")
-			else
-				profile_only_stacks+=("${stack}")
-			fi
-		done
-
-		log "deploying profile-side stacks first: ${profile_only_stacks[*]}"
-		deploy_cdk_stacks "" "${profile_only_stacks[@]}"
-		log "profile-side stack deployment complete"
-
-		profile_service_url_override="$(resolve_profile_service_url "${profile_stack_name}")"
-		log "resolved profile service url: ${profile_service_url_override}"
-
-		log "deploying gateway stack with resolved profile url: ${gateway_only_stacks[*]}"
-		deploy_cdk_stacks "${profile_service_url_override}" "${gateway_only_stacks[@]}"
-		log "gateway stack deployment complete"
-	elif [[ -z "${profile_service_url_override}" && "${profile_selected}" != "true" && "${gateway_selected}" == "true" ]]; then
-		if profile_service_url_override="$(try_resolve_profile_service_url "${profile_stack_name}")"; then
-			log "resolved existing profile service url from ${profile_stack_name}: ${profile_service_url_override}"
-		else
-			echo "Gateway stack requires PROFILE_SERVICE_BASE_URL when profile stack is not selected and ${profile_stack_name} is not deployed." >&2
-			echo "Either include 'profile' in DEPLOY_STACKS or provide PROFILE_SERVICE_BASE_URL." >&2
-			exit 1
-		fi
-
-		log "deploying selected stacks: ${selected_stacks[*]}"
-		deploy_cdk_stacks "${profile_service_url_override}" "${selected_stacks[@]}"
-		log "selected stack deployment complete"
-	else
-		log "deploying selected stacks: ${selected_stacks[*]}"
-		deploy_cdk_stacks "${profile_service_url_override}" "${selected_stacks[@]}"
-		log "selected stack deployment complete"
-	fi
+	log "using gateway profile service base url: ${profile_service_url_override}"
+	log "deploying selected stacks: ${selected_stacks[*]}"
+	deploy_cdk_stacks "${profile_service_url_override}" "${selected_stacks[@]}"
+	log "selected stack deployment complete"
 
 else
 	if [[ "${DESTROY_ALL}" == "true" ]]; then

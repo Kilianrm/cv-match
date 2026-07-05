@@ -75,6 +75,6 @@ npm run synth -- -c stage=dev -c appName=cv-match
 1. Set `AWS_PROFILE` and `AWS_REGION`.
 2. Bootstrap the target account/region once with `npx cdk bootstrap`.
 3. Synthesize and deploy the `dev` stage with the `stage` and `appName` context values.
-4. For the current `dev` microservice flow, deploy `profile-service` first, resolve the emitted `ProfileServiceUrl`, and then deploy `gateway-service` with that URL passed as `profileServiceBaseUrl`.
+4. For the current `dev` microservice flow, `gateway-service` calls `profile-service` through ECS Service Connect using the internal default URL `http://profile-service:8080`.
 
 If you only deploy one service, that is still supported for isolated validation. In that case, the service should not rely on a missing downstream endpoint unless you provide one explicitly.

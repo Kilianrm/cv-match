@@ -15,6 +15,7 @@ test('creates required foundation boundaries', () => {
 		expect.arrayContaining([
 			'cv-match-dev-network',
 			'cv-match-dev-security',
+			'cv-match-dev-compute',
 			'cv-match-dev-data',
 			'cv-match-dev-auth',
 			'cv-match-dev-gateway',
@@ -33,6 +34,7 @@ test('supports foundation deployment without shared security stack', () => {
 	expect(stackNames).toEqual(
 		expect.arrayContaining([
 			'cv-match-dev-network',
+			'cv-match-dev-compute',
 			'cv-match-dev-data',
 			'cv-match-dev-auth',
 			'cv-match-dev-profile',

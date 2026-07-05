@@ -3,6 +3,7 @@ import { Match, Template } from 'aws-cdk-lib/assertions';
 
 import { NetworkStack } from '../../cdk/lib/stacks/base/network';
 import { SecurityStack } from '../../cdk/lib/stacks/base/security';
+import { ComputeStack } from '../../cdk/lib/stacks/shared/compute';
 import { DataStack } from '../../cdk/lib/stacks/shared/data';
 import { ProfileServiceStack } from '../../cdk/lib/stacks/services/profile';
 
@@ -40,6 +41,16 @@ test('profile service stack creates an internal ecs service backed by the shared
 		databaseSecurityGroup: security.databaseSecurityGroup,
 	});
 
+	const compute = new ComputeStack(app, 'cv-match-dev-compute', {
+		env,
+		foundation: {
+			appName: 'cv-match',
+			stage: 'dev',
+			env,
+		},
+		vpc: network.vpc,
+	});
+
 	const stack = new ProfileServiceStack(app, 'cv-match-dev-profile', {
 		env,
 		foundation: {
@@ -48,6 +59,8 @@ test('profile service stack creates an internal ecs service backed by the shared
 			env,
 		},
 		vpc: network.vpc,
+		cluster: compute.cluster,
+		securityGroups: [security.serviceSecurityGroup],
 		databaseSecret: data.database.secret!,
 		databaseHost: data.database.instanceEndpoint.hostname,
 		cvBucket: data.cvBucket,
@@ -56,11 +69,11 @@ test('profile service stack creates an internal ecs service backed by the shared
 	const template = Template.fromStack(stack);
 
 	template.resourceCountIs('AWS::ECS::Service', 1);
-	template.resourceCountIs('AWS::ElasticLoadBalancingV2::LoadBalancer', 1);
-	template.hasResourceProperties('AWS::ElasticLoadBalancingV2::LoadBalancer', {
-		Scheme: 'internal',
+	template.resourceCountIs('AWS::ElasticLoadBalancingV2::LoadBalancer', 0);
+	template.hasResourceProperties('AWS::ECS::Service', {
+		ServiceConnectConfiguration: Match.anyValue(),
 	});
 	template.hasOutput('ProfileServiceUrl', {
-		Value: Match.anyValue(),
+		Value: 'http://profile-service:8080',
 	});
 });

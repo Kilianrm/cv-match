@@ -8,6 +8,8 @@ import * as ecsPatterns from 'aws-cdk-lib/aws-ecs-patterns';
 import { Construct } from 'constructs';
 
 import { applyConventions, FoundationConfig } from '../../../bin/conventions';
+import { EcsServiceLogging } from '../../constructs/ecs-logging';
+import { createStandardServiceQueries, ServiceLogInsightsQueries } from '../../constructs/log-insights-queries';
 
 function findRepoPath(...targetSegments: string[]): string {
   let currentDirectory = __dirname;
@@ -30,6 +32,7 @@ function findRepoPath(...targetSegments: string[]): string {
 export interface GatewayServiceStackProps extends StackProps {
   foundation: FoundationConfig;
   vpc: ec2.IVpc;
+  cluster: ecs.ICluster;
   securityGroups?: ec2.ISecurityGroup[]; // ?: Optional security groups for the ECS service. If not provided, the default security group of the VPC will be used.
   profileServiceBaseUrl: string;
   serviceImageDirectory?: string;
@@ -51,12 +54,23 @@ export class GatewayServiceStack extends Stack {
     const imageDirectory = props.serviceImageDirectory ?? findRepoPath('services', 'gateway');
     const servicePort = props.servicePort ?? 8000;
 
-    const cluster = new ecs.Cluster(this, 'GatewayCluster', {
-      vpc: props.vpc,
+    const serviceLogging = new EcsServiceLogging(this, 'GatewayServiceLogging', {
+      foundation: props.foundation,
+      serviceName: 'gateway-service',
+      streamPrefix: 'gateway-service',
+    });
+
+    new ServiceLogInsightsQueries(this, 'GatewayLogInsightsQueries', {
+      appName: props.foundation.appName,
+      stage: props.foundation.stage,
+      serviceName: 'gateway-service',
+      logGroupNames: [serviceLogging.logGroup.logGroupName],
+      queries: createStandardServiceQueries('gateway-service'),
     });
 
     const environment: Record<string, string> = {
       SERVICE_NAME: 'gateway-service',
+      ENVIRONMENT: props.foundation.stage,
       SERVICE_PORT: servicePort.toString(),
       PROFILE_SERVICE_URL: props.profileServiceBaseUrl,
       LOCAL_AUTH_BYPASS: String(props.localAuthBypass ?? false),
@@ -77,7 +91,7 @@ export class GatewayServiceStack extends Stack {
     // - Fargate service: runs the gateway container in private subnets
     // - task definition/container: injects these environment values at runtime
     const service = new ecsPatterns.ApplicationLoadBalancedFargateService(this, 'GatewayService', {
-      cluster,
+      cluster: props.cluster,
       publicLoadBalancer: true,
       desiredCount: props.desiredCount ?? 1,
       cpu: props.cpu ?? 512,
@@ -99,9 +113,13 @@ export class GatewayServiceStack extends Stack {
         }),
         containerPort: servicePort,
         environment,
-        logDriver: ecs.LogDrivers.awsLogs({ streamPrefix: 'gateway-service' }),
+        logDriver: serviceLogging.logDriver,
       },
     });
+
+    // This ECS pattern doesn't expose serviceConnectConfiguration in constructor props.
+    // Enable Service Connect directly on the underlying Fargate service instance.
+    service.service.enableServiceConnect();
 
     service.targetGroup.configureHealthCheck({
       path: '/health',
@@ -111,6 +129,11 @@ export class GatewayServiceStack extends Stack {
     new CfnOutput(this, 'GatewayServiceUrl', {
       value: `http://${service.loadBalancer.loadBalancerDnsName}`,
       description: 'Public URL for the gateway-service ALB in this environment.',
+    });
+
+    new CfnOutput(this, 'GatewayServiceLogGroupName', {
+      value: serviceLogging.logGroup.logGroupName,
+      description: 'CloudWatch Logs group for gateway-service ECS task logs.',
     });
   }
 }

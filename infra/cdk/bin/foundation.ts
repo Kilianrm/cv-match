@@ -2,6 +2,7 @@ import { App, Environment } from 'aws-cdk-lib';
 import { NetworkStack } from '../lib/stacks/base/network';
 import { SecurityStack } from '../lib/stacks/base/security';
 import { AuthStack } from '../lib/stacks/shared/auth';
+import { ComputeStack } from '../lib/stacks/shared/compute';
 import { DataStack } from '../lib/stacks/shared/data';
 import { GatewayServiceStack } from '../lib/stacks/services/gateway';
 import { ProfileServiceStack } from '../lib/stacks/services/profile';
@@ -74,6 +75,13 @@ export function deployFoundation(app: App, options: FoundationAppOptions = {}) {
       })
     : undefined;
 
+  const compute = new ComputeStack(app, stackId(config, 'compute'), {
+    env: config.env,
+    foundation: config,
+    vpc: network.vpc,
+    description: 'Shared compute stack for ECS cluster resources.',
+  });
+
   const data = new DataStack(app, stackId(config, 'data'), {
     env: config.env,
     foundation: config,
@@ -97,9 +105,11 @@ export function deployFoundation(app: App, options: FoundationAppOptions = {}) {
     env: config.env,
     foundation: config,
     vpc: network.vpc,
+    cluster: compute.cluster,
     databaseSecret: data.database.secret!,
     databaseHost: data.database.instanceEndpoint.hostname,
     cvBucket: data.cvBucket,
+    securityGroups: security ? [security.serviceSecurityGroup] : undefined,
     description: 'Profile service stack for user profile and CV workflows.',
   });
 
@@ -107,6 +117,7 @@ export function deployFoundation(app: App, options: FoundationAppOptions = {}) {
     env: config.env,
     foundation: config,
     vpc: network.vpc,
+    cluster: compute.cluster,
     profileServiceBaseUrl,
     cognitoClientId: auth.userPoolClient.userPoolClientId,
     jwksUrl: auth.jwksUrl,
@@ -117,19 +128,23 @@ export function deployFoundation(app: App, options: FoundationAppOptions = {}) {
   if (security) {
     data.addDependency(security);
   }
+  compute.addDependency(network);
   auth.addDependency(network);
   profileService.addDependency(network);
+  profileService.addDependency(compute);
   if (security) {
     profileService.addDependency(security);
   }
   profileService.addDependency(data);
   gatewayService.addDependency(network);
+  gatewayService.addDependency(compute);
   gatewayService.addDependency(auth);
+  gatewayService.addDependency(profileService);
   if (security) {
     gatewayService.addDependency(security);
   }
 
-  return { network, security, data, auth, profileService, gatewayService, config };
+  return { network, security, compute, data, auth, profileService, gatewayService, config };
 }
 
 

@@ -56,6 +56,7 @@ export class NetworkStack extends Stack {
       subnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [endpointSecurityGroup],
       privateDnsEnabled: true,
+      lookupSupportedAzs: true,
     });
 
     this.vpc.addInterfaceEndpoint('EcrDockerEndpoint', {
@@ -63,6 +64,7 @@ export class NetworkStack extends Stack {
       subnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [endpointSecurityGroup],
       privateDnsEnabled: true,
+      lookupSupportedAzs: true,
     });
 
     this.vpc.addInterfaceEndpoint('CloudWatchLogsEndpoint', {
@@ -70,6 +72,15 @@ export class NetworkStack extends Stack {
       subnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [endpointSecurityGroup],
       privateDnsEnabled: true,
+      lookupSupportedAzs: true,
+    });
+
+    this.vpc.addInterfaceEndpoint('SecretsManagerEndpoint', {
+      service: ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
+      subnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [endpointSecurityGroup],
+      privateDnsEnabled: true,
+      lookupSupportedAzs: true,
     });
 
     this.vpc.addInterfaceEndpoint('CognitoIdpEndpoint', {
@@ -77,6 +88,7 @@ export class NetworkStack extends Stack {
       subnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [endpointSecurityGroup],
       privateDnsEnabled: true,
+      lookupSupportedAzs: true,
     });
 
     this.vpc.addGatewayEndpoint('S3GatewayEndpoint', {
@@ -93,5 +105,6 @@ export class NetworkStack extends Stack {
       value: this.vpc.vpcCidrBlock,
       description: 'CIDR block allocated to the CV Match VPC.',
     });
+
   }
 }

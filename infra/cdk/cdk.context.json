@@ -6,5 +6,42 @@
     "us-east-1d",
     "us-east-1e",
     "us-east-1f"
+  ],
+  "endpoint-service-availability-zones:account=842675974816:region=us-east-1:serviceName=com.amazonaws.us-east-1.ecr.api": [
+    "us-east-1a",
+    "us-east-1b",
+    "us-east-1c",
+    "us-east-1d",
+    "us-east-1e",
+    "us-east-1f"
+  ],
+  "endpoint-service-availability-zones:account=842675974816:region=us-east-1:serviceName=com.amazonaws.us-east-1.ecr.dkr": [
+    "us-east-1a",
+    "us-east-1b",
+    "us-east-1c",
+    "us-east-1d",
+    "us-east-1e",
+    "us-east-1f"
+  ],
+  "endpoint-service-availability-zones:account=842675974816:region=us-east-1:serviceName=com.amazonaws.us-east-1.logs": [
+    "us-east-1a",
+    "us-east-1b",
+    "us-east-1c",
+    "us-east-1d",
+    "us-east-1e",
+    "us-east-1f"
+  ],
+  "endpoint-service-availability-zones:account=842675974816:region=us-east-1:serviceName=com.amazonaws.us-east-1.cognito-idp": [
+    "us-east-1a",
+    "us-east-1c",
+    "us-east-1d"
+  ],
+  "endpoint-service-availability-zones:account=842675974816:region=us-east-1:serviceName=com.amazonaws.us-east-1.secretsmanager": [
+    "us-east-1a",
+    "us-east-1b",
+    "us-east-1c",
+    "us-east-1d",
+    "us-east-1e",
+    "us-east-1f"
   ]
 }
