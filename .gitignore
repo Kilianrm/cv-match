@@ -1,0 +1,20 @@
+# Environment files ? copy *.example files and fill in your values
+.env.local
+.env.dev
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Node / Next.js (root level)
+node_modules/
+
+# CDK
+cdk.out/
+
+# OS
+.DS_Store
+Thumbs.db

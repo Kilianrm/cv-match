@@ -18,7 +18,18 @@ Professional and maintainable frontend MVP for CV Match using Next.js App Router
 - npm 10+
 - AWS Cognito User Pool with an App Client configured for PKCE.
 
-## Environment setup
+## Environment
+
+In both cases the **frontend runs locally**. The env file controls which backend it talks to:
+
+| File | Frontend | Backend | Created by |
+|---|---|---|---|
+| `.env.local` | localhost:3000 | Local gateway + services (localhost) | You, manually ? **this section** |
+| `.env.dev` | localhost:3000 | Dev backend hosted in AWS | Deploy script (automatic) |
+
+> **`.env.dev` is not needed locally.** It is generated automatically by `./scripts/support/sync-frontend-env-dev.sh` when deploying the dev environment.
+
+## Local environment setup
 
 ### 1. Create Cognito User Pool (AWS Console)
 
@@ -31,46 +42,45 @@ Professional and maintainable frontend MVP for CV Match using Next.js App Router
    - Enable "Authorization Code Grant" flow.
    - Scopes: openid, email, profile.
 
-### 2. Configure frontend env
+### 2. Configure .env.local file:
 
-1. Copy .env.example to .env.local.
-2. Replace placeholders with your Cognito values:
-   - `AUTH_AUTHORIZATION_ENDPOINT`: Your pool's `/oauth2/authorize` endpoint.
-   - `AUTH_TOKEN_ENDPOINT`: Your pool's `/oauth2/token` endpoint.
-   - `AUTH_LOGOUT_ENDPOINT`: Your pool's `/logout` endpoint.
-   - `AUTH_CLIENT_ID`: Your App Client ID.
+1. Copy the example file:
+   ```bash
+   cp .env.example .env.local
+   ```
+2. Open `.env.local` and replace the placeholders with your Cognito pool values:
+   - `<your-domain>` ? your Cognito domain prefix
+   - `<region>` ? e.g. `us-east-1`
+   - `<your-cognito-app-client-id>` ? App Client ID from Cognito
 
-Example:
-
-```env
-API_GATEWAY_BASE_URL=http://localhost:8080
-AUTH_AUTHORIZATION_ENDPOINT=https://your-domain.auth.us-east-1.amazoncognito.com/oauth2/authorize
-AUTH_TOKEN_ENDPOINT=https://your-domain.auth.us-east-1.amazoncognito.com/oauth2/token
-AUTH_LOGOUT_ENDPOINT=https://your-domain.auth.us-east-1.amazoncognito.com/logout
-AUTH_LOGOUT_REDIRECT_PARAM=logout_uri
-AUTH_CLIENT_ID=your_cognito_app_client_id
-AUTH_REDIRECT_URI=http://localhost:3000/api/auth/callback
-AUTH_LOGOUT_REDIRECT_URI=http://localhost:3000
-AUTH_SCOPES=openid email profile
-```
 
 ## Run locally
 
 ```bash
 npm install
-npm run dev
+npm run dev:local   # loads .env.local
+```
+
+## Run locally pointing to aws dev backend
+
+```bash
+npm install
+npm run dev:dev   # enforces .env.dev (temporarily ignores .env.local)
 ```
 
 Open http://localhost:3000.
 
 ## Commands
 
-```bash
-npm run dev
-npm run lint
-npm run build
-npm run start
-```
+| Command | Env file loaded | Description |
+|---|---|---|
+| `npm run dev` | `.env.local` (Next.js default) | Standard local dev |
+| `npm run dev:local` | `.env.local` (explicit) | Local dev with explicit env |
+| `npm run dev:dev` | `.env.dev` only (temporarily disables `.env.local`) | Dev/cloud env |
+| `npm run build` | `.env.local` | Production build (local) |
+| `npm run build:dev` | `.env.dev` | Production build for dev environment |
+| `npm run start` | Build output env at runtime | Start production server after build |
+| `npm run lint` | n/a | Run ESLint |
 
 ## Architecture notes
 

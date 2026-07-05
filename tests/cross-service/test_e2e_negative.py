@@ -9,10 +9,7 @@ from __future__ import annotations
 
 import json
 
-from test_e2e import assert_eq, http_request, wait_for_gateway
-
-
-AUTH_HEADERS = {"Authorization": "Bearer local-dev-token"}
+from test_e2e import AUTH_HEADERS, api_url, assert_eq, http_request, wait_for_gateway
 
 
 def test_01_gateway_health_for_negative_suite() -> None:
@@ -22,14 +19,14 @@ def test_01_gateway_health_for_negative_suite() -> None:
 
 def test_02_auth_session_rejects_missing_authorization() -> None:
     print("[neg 2/6] auth/session rejects missing authorization")
-    status, payload = http_request("POST", "http://localhost:8000/api/v1/auth/session")
+    status, payload = http_request("POST", api_url("/api/v1/auth/session"))
     assert_eq(401, status, "auth/session missing auth status code")
     assert_eq("Missing or invalid Authorization header", json.loads(payload).get("detail"), "auth/session missing auth detail")
 
 
 def test_03_profile_read_rejects_missing_authorization() -> None:
     print("[neg 3/6] profile read rejects missing authorization")
-    status, payload = http_request("GET", "http://localhost:8000/api/v1/profile")
+    status, payload = http_request("GET", api_url("/api/v1/profile"))
     assert_eq(401, status, "profile read missing auth status code")
     assert_eq("Missing or invalid Authorization header", json.loads(payload).get("detail"), "profile read missing auth detail")
 
@@ -46,7 +43,7 @@ def test_04_profile_update_rejects_invalid_location_hierarchy() -> None:
 
     status, payload = http_request(
         "PUT",
-        "http://localhost:8000/api/v1/profile",
+        api_url("/api/v1/profile"),
         body=invalid_body,
         headers={**AUTH_HEADERS, "Content-Type": "application/json"},
     )
@@ -69,7 +66,7 @@ def test_05_cv_upload_rejects_invalid_extension() -> None:
 
     status, payload = http_request(
         "POST",
-        "http://localhost:8000/api/v1/profile/cv",
+        api_url("/api/v1/profile/cv"),
         body=multipart,
         headers={
             **AUTH_HEADERS,
@@ -82,7 +79,7 @@ def test_05_cv_upload_rejects_invalid_extension() -> None:
 
 def test_06_public_locations_endpoint_is_available() -> None:
     print("[neg 6/6] public locations endpoint remains available without auth")
-    status, payload = http_request("GET", "http://localhost:8000/api/v1/locations/countries?limit=2")
+    status, payload = http_request("GET", api_url("/api/v1/locations/countries?limit=2"))
     assert_eq(200, status, "public countries status code")
     data = json.loads(payload)
     countries = data.get("countries", [])

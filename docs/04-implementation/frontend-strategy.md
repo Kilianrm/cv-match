@@ -83,6 +83,35 @@ From frontend/:
 4. Open http://localhost:3000
 5. Click login to start Cognito Hosted UI flow
 
+## Hybrid Deployment Mode (Recommended for Current Stage)
+
+To control AWS cost and reduce operational complexity while the platform is still growing, the frontend can remain local while backend microservices run in AWS `dev`.
+
+Target model:
+
+- Frontend runtime: local (`npm run dev` in `frontend/`)
+- Backend runtime: AWS `dev` (gateway-service and downstream services deployed with CDK)
+- Infrastructure as Code scope: backend and shared infrastructure first; frontend cloud hosting can be added later
+
+Required configuration for this mode:
+
+1. Set `API_GATEWAY_BASE_URL` in `frontend/.env.local` to the deployed AWS gateway URL.
+2. Ensure Cognito app client includes localhost callback/logout URLs for frontend local auth flow.
+3. Ensure gateway/API CORS allows the local frontend origin.
+4. Keep environment-specific values separated between local frontend and AWS backend.
+
+Why this mode is acceptable now:
+
+- It keeps end-to-end product iteration fast.
+- It avoids adding another always-on cloud runtime while multiple backend services are already active.
+- It preserves the current frontend architecture and auth model.
+
+Known trade-offs:
+
+- Cloud-to-cloud browser parity is not full yet (frontend is not hosted in AWS).
+- Team/demo sharing is less convenient than a fully deployed frontend.
+- A future step is still needed to host frontend in AWS (for example ECS or managed hosting) when cost/priority allows.
+
 ## Security Notes
 
 - Keep access/id tokens in HTTP-only cookies, not localStorage.

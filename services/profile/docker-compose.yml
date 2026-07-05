@@ -1,0 +1,42 @@
+services:
+  profile-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: profile-service:local
+    environment:
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_REGION: us-east-1
+      CV_BUCKET_NAME: profile-cv-bucket
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - localstack
+    command: ["uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: profile_db
+      POSTGRES_USER: profile_user
+      POSTGRES_PASSWORD: profile_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../../db/init:/docker-entrypoint-initdb.d:ro
+
+  localstack:
+    image: localstack/localstack:3.5
+    environment:
+      - SERVICES=s3
+      - AWS_DEFAULT_REGION=us-east-1
+    ports:
+      - "4566:4566"
+    volumes:
+      - localstack_data:/var/lib/localstack
+
+volumes:
+  pgdata:
+  localstack_data:
