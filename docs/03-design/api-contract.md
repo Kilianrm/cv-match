@@ -51,6 +51,9 @@ https://<cognito-domain>.auth.<region>.amazoncognito.com
 |   |-- POST /profile/cv
 |   |-- GET /profile/cv
 |   |-- DELETE /profile/cv
+|   |-- GET /profile/parse-suggestions
+|   |-- POST /profile/parse-suggestions/decisions
+|   |-- POST /profile/parse-suggestions/apply
 |   |-- POST /profile/skills
 |   |-- DELETE /profile/skills/{skill_id}
 |   |-- POST /profile/preferred-roles
@@ -204,6 +207,195 @@ No active CV response example:
 
 Notes:
 - If no active CV exists, the endpoint still returns `204 No Content`.
+- CV acceptance/rejection decisions do not remove the active CV artifact.
+
+#### GET /profile/parse-suggestions
+
+- Purpose: Retrieve the latest pending parser suggestions for user review.
+- Auth: Protected endpoint (Bearer JWT required).
+- Request:
+	- Headers: `Authorization: Bearer <token>`
+- Success responses: `200 OK`
+- Error responses: `401 Unauthorized`, `404 Not Found`, `500 Internal Server Error`
+
+Coverage expectations:
+- The parser should attempt to extract all profile-relevant sections available in the CV.
+- Target sections include: `basic_info`, `location`, `skills`, `preferred_roles`, `experience`, `education`, and `certifications`.
+- Missing sections are valid when source data is not present or confidence is too low.
+
+Design note:
+- The `parse_suggestion_batches` + `parse_suggestion_items` model is intentionally generic and can represent all sections without duplicating every canonical table as `suggested_*`.
+- Each `parse_suggestion_items.proposed_payload` stores the section-specific structure, while `section` and `item_key` preserve routing and identity.
+- If future requirements demand heavy analytics/indexing over pending suggestions, section-specific materialized views (or dedicated `suggested_*` tables) can be added without changing the external API contract.
+
+Success response example:
+```json
+{
+	"batch_id": "b1",
+	"status": "pending_review",
+	"source": {
+		"cv_upload_record_id": "8e68c0d0-2d40-4f1f-b48b-909e6dd9f9bb",
+		"parser_version": "v1"
+	},
+	"items": [
+		{
+			"id": "i1",
+			"section": "basic_info",
+			"item_key": "profile",
+			"status": "pending",
+			"confidence": 0.86,
+			"is_conflict": true,
+			"proposed_payload": {
+				"full_name": "Jane Alexandra Doe",
+				"headline": "Senior Backend Engineer",
+				"summary": "Backend engineer with 6+ years building event-driven services on AWS."
+			}
+		},
+		{
+			"id": "i2",
+			"section": "location",
+			"item_key": "profile",
+			"status": "pending",
+			"confidence": 0.78,
+			"is_conflict": false,
+			"proposed_payload": {
+				"country_code": "AR",
+				"region_name": "Buenos Aires",
+				"city_name": "La Plata"
+			}
+		},
+		{
+			"id": "i3",
+			"section": "skills",
+			"item_key": "python",
+			"status": "pending",
+			"confidence": 0.91,
+			"is_conflict": false,
+			"proposed_payload": {
+				"skill_name": "Python",
+				"proficiency_level": "advanced"
+			}
+		},
+		{
+			"id": "i4",
+			"section": "preferred_roles",
+			"item_key": "backend-engineer",
+			"status": "pending",
+			"confidence": 0.74,
+			"is_conflict": false,
+			"proposed_payload": {
+				"role_name": "Backend Engineer"
+			}
+		},
+		{
+			"id": "i5",
+			"section": "experience",
+			"item_key": "exp-technova-2023",
+			"status": "pending",
+			"confidence": 0.88,
+			"is_conflict": false,
+			"proposed_payload": {
+				"position": "Senior Backend Engineer",
+				"company": "TechNova",
+				"start_date": "2023-03-01",
+				"end_date": null,
+				"is_current": true,
+				"responsibilities": [
+					"Designed event-driven APIs for profile and matching domains",
+					"Improved PostgreSQL query latency for profile reads"
+				]
+			}
+		},
+		{
+			"id": "i6",
+			"section": "education",
+			"item_key": "edu-uba-cs",
+			"status": "pending",
+			"confidence": 0.84,
+			"is_conflict": false,
+			"proposed_payload": {
+				"degree": "BSc in Computer Science",
+				"institution": "University of Buenos Aires",
+				"start_date": "2015-03-01",
+				"end_date": "2019-12-15",
+				"status": "completed"
+			}
+		},
+		{
+			"id": "i7",
+			"section": "certifications",
+			"item_key": "cert-aws-dev-assoc",
+			"status": "pending",
+			"confidence": 0.76,
+			"is_conflict": false,
+			"proposed_payload": {
+				"name": "AWS Certified Developer - Associate",
+				"issuer": "Amazon Web Services",
+				"issued_at": "2024-06-10"
+			}
+		}
+	]
+}
+```
+
+#### POST /profile/parse-suggestions/decisions
+
+- Purpose: Record user decisions for parser suggestions (accept/decline), by section or item.
+- Auth: Protected endpoint (Bearer JWT required).
+- Request:
+	- Headers: `Authorization: Bearer <token>`, `Content-Type: application/json`
+	- Body fields:
+		- `batch_id` (required)
+		- `scope` (`all`, `section`, `items`)
+		- `decision` (`accept`, `reject`, `skip`)
+		- `section` (required when scope=`section`)
+		- `item_ids` (required when scope=`items`)
+		- `decision_action` (optional; for conflicts: `keep_existing`, `replace_existing`, `merge`, `add_separate`)
+		- `reason` (optional)
+- Success responses: `200 OK`
+- Error responses: `400 Bad Request`, `401 Unauthorized`, `404 Not Found`, `409 Conflict`, `500 Internal Server Error`
+
+Notes:
+- `skip` keeps items as pending and lets users continue onboarding/profile editing.
+- `decision_action` is required when a conflicting item is accepted.
+
+Request example:
+```json
+{
+	"batch_id": "b1",
+	"scope": "section",
+	"section": "experience",
+	"decision": "accept",
+	"decision_action": "merge"
+}
+```
+
+#### POST /profile/parse-suggestions/apply
+
+- Purpose: Apply accepted parser suggestions from a batch to canonical profile tables.
+- Auth: Protected endpoint (Bearer JWT required).
+- Request:
+	- Headers: `Authorization: Bearer <token>`, `Content-Type: application/json`
+	- Body fields:
+		- `batch_id` (required)
+		- `allow_partial_apply` (optional, default `true`)
+- Success responses: `200 OK`
+- Error responses: `400 Bad Request`, `401 Unauthorized`, `404 Not Found`, `409 Conflict`, `500 Internal Server Error`
+
+Success response example:
+```json
+{
+	"status": "applied",
+	"batch_id": "b1",
+	"summary": {
+		"accepted_items": 8,
+		"rejected_items": 3,
+		"skipped_items": 2,
+		"applied_items": 8,
+		"conflict_items": 1
+	}
+}
+```
 
 ### Profile
 
@@ -215,6 +407,10 @@ Notes:
 	- Headers: `Authorization: Bearer <token>`
 - Success responses: `200 OK`
 - Error responses: `401 Unauthorized`, `404 Not Found`, `500 Internal Server Error`
+
+Notes:
+- `GET /profile` returns canonical profile data only.
+- Pending parser suggestions are retrieved through `GET /profile/parse-suggestions`.
 
 Success response example:
 ```json

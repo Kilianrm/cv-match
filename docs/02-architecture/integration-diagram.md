@@ -26,7 +26,11 @@ flowchart TB
   API -- GET /internal/users/{user_id}/matches --> MATCHER[Matching Service]
 
   PARSER -. get_cv\n{user_id,cv_id}.-> S3
-  PARSER -- POST /internal/user/{user_id}/profile (profile_updates) --> PROFILE
+  PARSER -- POST /internal/users/{user_id}/parse-suggestions --> PROFILE
+  FE -- GET /profile/parse-suggestions --> API
+  FE -- POST /profile/parse-suggestions/decisions --> API
+  FE -- POST /profile/parse-suggestions/apply --> API
+  API -- parser suggestion review routes --> PROFILE
   
   SCRAPER -- upsert_job_offers --> RDS
   EB -. match_jobs_requested\n(scope=system,trigger_type = scheduled) .-> QM

@@ -27,6 +27,37 @@ Table cv_upload_records [headercolor: #4CAF50] {
   is_active boolean [not null, default: false]
 }
 
+Table parse_suggestion_batches [headercolor: #4CAF50] {
+  id uuid [pk]
+  user_id uuid [not null]
+  cv_upload_record_id uuid [not null]
+  parser_version varchar [not null, default: 'v1']
+  status varchar [not null, default: 'pending_review']
+  created_at timestamptz [not null, default: `now()`]
+  reviewed_at timestamptz
+  applied_at timestamptz
+}
+
+Table parse_suggestion_items [headercolor: #4CAF50] {
+  id uuid [pk]
+  batch_id uuid [not null]
+  section varchar [not null]
+  item_key varchar
+  proposed_payload jsonb [not null]
+  confidence numeric
+  status varchar [not null, default: 'pending']
+  is_conflict boolean [not null, default: false]
+  conflict_type varchar
+  decision_action varchar
+  decision_reason varchar
+  created_at timestamptz [not null, default: `now()`]
+  decided_at timestamptz
+
+  indexes {
+    (batch_id, section, item_key)
+  }
+}
+
 Table profiles [headercolor: #4CAF50] {
   user_id uuid [pk]
   full_name varchar [not null]
@@ -390,6 +421,9 @@ Table notification_deliveries [headercolor: #4CAF50] {
 }
 
 Ref: cv_upload_records.user_id > users.id
+Ref: parse_suggestion_batches.user_id > users.id
+Ref: parse_suggestion_batches.cv_upload_record_id > cv_upload_records.id
+Ref: parse_suggestion_items.batch_id > parse_suggestion_batches.id
 Ref: profiles.user_id - users.id
 Ref: profiles.country_code > countries.code
 Ref: profiles.region_id > regions.id
@@ -448,6 +482,8 @@ Ref: application_outcomes.match_id > matches.id
 TableGroup phase_1_core {
   users
   cv_upload_records
+  parse_suggestion_batches
+  parse_suggestion_items
   profiles
   countries
   regions

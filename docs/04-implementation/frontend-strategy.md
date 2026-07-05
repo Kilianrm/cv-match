@@ -158,7 +158,7 @@ Each card should:
 **CV upload card**
 - Show current CV status: no CV, uploaded, processing, failed.
 - Primary action: upload or replace CV.
-- After successful upload, refresh profile data and show any parsed suggestions as draft values in the relevant sections.
+- After successful upload, poll parse status and show a "Review parsed suggestions" CTA when suggestions are ready.
 
 **Basic info card**
 - Fields:
@@ -255,9 +255,48 @@ Minimum MVP validation:
 ### CV Prefill Behavior
 
 When CV parsing returns structured data:
-- Pre-populate empty fields automatically as draft UI state.
-- For fields already edited by the user, show a review prompt instead of silently overwriting values.
-- Highlight suggested values until the user saves or dismisses them.
+- Do not silently overwrite canonical profile values.
+- Load suggestions from `/api/v1/profile/parse-suggestions`.
+- Show diffs per section: current value vs suggested value.
+- Let users accept/decline by section and by item.
+- Apply accepted suggestions only after explicit confirmation through `/api/v1/profile/parse-suggestions/apply`.
+
+### Review Imported Data UX
+
+- Show a dedicated review panel after parse completion.
+- Provide quick actions: `Accept all`, `Decline all`, `Accept section`, `Decline section`.
+- Mark low-confidence suggestions as "Needs review" and avoid pre-selecting them as accepted.
+- Show apply summary after confirmation, for example: "6 changes applied, 2 declined".
+- Keep declined suggestions hidden from normal edit forms unless user opens review history.
+
+### First-Run Onboarding UX
+
+Recommended first authenticated path:
+1. Upload CV (optional)
+2. Wait for parse completion
+3. Review suggestions (accept/decline/skip)
+4. Continue to profile dashboard
+
+Rules:
+- Upload can be skipped.
+- Suggestion review can be skipped without blocking profile usage.
+- If skipped, show a persistent "Suggestions pending" indicator on profile.
+
+### Ongoing CV Management UX
+
+- Keep CV upload and suggestion review in the same profile domain (CV card + review panel).
+- CV card remains visible after decisions are applied, with status and last upload metadata.
+- Uploading a new CV creates a new suggestion batch and does not delete history immediately.
+
+### Conflict UX Rules
+
+- Separate normal suggestions from conflict suggestions in UI.
+- For conflict suggestions, require explicit resolution action before apply:
+	- `keep existing`
+	- `replace existing`
+	- `merge`
+	- `add as separate`
+- Highlight timeline overlap conflicts in experience with side-by-side comparison.
 
 ### Mobile Behavior
 
