@@ -9,6 +9,10 @@ from src.shared.config import settings
 logger = logging.getLogger(__name__)
 
 
+class StorageBootstrapError(RuntimeError):
+    """Raised when required storage resources are missing or unavailable."""
+
+
 class S3Storage:
     def __init__(self) -> None:
         client_kwargs: dict[str, str] = {"region_name": settings.aws_region}
@@ -24,9 +28,15 @@ class S3Storage:
         bucket = settings.cv_bucket_name
         try:
             self._s3.head_bucket(Bucket=bucket)
-        except ClientError:
-            logger.info("Bucket %s not found, creating it", bucket)
-            self._s3.create_bucket(Bucket=bucket)
+        except ClientError as exc:
+            logger.error(
+                "Bucket %s is not available. Resources must be provisioned via bootstrap.",
+                bucket,
+                extra={"event": "s3_bucket_missing", "bucket": bucket},
+            )
+            raise StorageBootstrapError(
+                f"S3 bucket '{bucket}' is not available. Run infrastructure bootstrap before using this endpoint."
+            ) from exc
 
     def upload_bytes(self, object_key: str, content: bytes, content_type: Optional[str]) -> str:
         self.ensure_bucket()

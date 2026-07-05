@@ -20,7 +20,7 @@ from psycopg.errors import UndefinedColumn, UndefinedTable
 
 from src.shared.config import settings
 from src.shared.cv_validation import validate_cv_file
-from src.shared.s3_storage import S3Storage
+from src.shared.s3_storage import S3Storage, StorageBootstrapError
 from src.modules.catalogs.cities_store import CitiesStore
 from src.modules.catalogs.countries_store import CountriesStore
 from src.modules.catalogs.degree_types_store import DegreeTypesStore
@@ -150,6 +150,26 @@ async def undefined_table_handler(request: Request, exc: UndefinedTable) -> JSON
 @app.exception_handler(UndefinedColumn)
 async def undefined_column_handler(request: Request, exc: UndefinedColumn) -> JSONResponse:
     return _database_bootstrap_error_response(request, exc)
+
+
+@app.exception_handler(StorageBootstrapError)
+async def storage_bootstrap_handler(request: Request, exc: StorageBootstrapError) -> JSONResponse:
+    logger.error(
+        "storage bootstrap is incomplete",
+        exc_info=(type(exc), exc, exc.__traceback__),
+        extra={
+            "event": "storage_bootstrap_incomplete",
+            "method": request.method,
+            "path": request.url.path,
+        },
+    )
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": str(exc),
+            "error_code": "storage_bootstrap_incomplete",
+        },
+    )
 
 
 def _bootstrap_readiness_snapshot() -> dict:

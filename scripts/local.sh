@@ -27,8 +27,10 @@ Actions:
 Stacks:
   gateway               Only gateway service
   profile               Only profile service
+	cv-parser             Only cv-parser service
   full                  All services via root docker-compose.yml
-  gateway,profile       Multiple services (comma-separated)
+	gateway,profile       Multiple services (comma-separated)
+	gateway,profile,cv-parser   Multiple services (comma-separated)
 
 Options:
   --skip-frontend       Exclude frontend from --stack full (for runtime only)
@@ -40,7 +42,9 @@ Suites (for 'test' action only):
 
 Examples:
   ./scripts/local.sh --action up --stack gateway
-  ./scripts/local.sh --action up --stack gateway,profile
+	./scripts/local.sh --action up --stack gateway,profile
+	./scripts/local.sh --action up --stack cv-parser
+	./scripts/local.sh --action up --stack gateway,profile,cv-parser
   ./scripts/local.sh --action up --stack full
   ./scripts/local.sh --action up --stack full --skip-frontend
   ./scripts/local.sh --action down --stack profile
@@ -111,14 +115,14 @@ esac
 
 # Validate STACK
 case "${STACK}" in
-	gateway|profile|full) ;;
+	gateway|profile|cv-parser|full) ;;
 	*)
 		# Check if it's comma-separated list of valid stacks
 		valid_stack=true
 		IFS=',' read -ra stacks <<< "${STACK}"
 		for s in "${stacks[@]}"; do
 			s="$(echo "$s" | xargs)"  # trim whitespace
-			if [[ "$s" != "gateway" && "$s" != "profile" ]]; then
+			if [[ "$s" != "gateway" && "$s" != "profile" && "$s" != "cv-parser" ]]; then
 				valid_stack=false
 				break
 			fi
@@ -188,6 +192,7 @@ free_port() {
 
 ensure_ports_free() {
 	local ports=(8000 8080 5432 4566)
+	ports+=(8090)
 	if [[ "${MODE}" == "runtime" ]]; then
 		ports+=(3000)
 	fi
@@ -297,7 +302,7 @@ up_cross_service() {
 		${COMPOSE_CMD} -p cv-match-cross-service -f "${ROOT_DIR}/docker-compose.yml" up -d --build
 	else
 		# Exclude frontend (either test mode or --skip-frontend flag)
-		${COMPOSE_CMD} -p cv-match-cross-service -f "${ROOT_DIR}/docker-compose.yml" up -d --build gateway profile postgres localstack
+		${COMPOSE_CMD} -p cv-match-cross-service -f "${ROOT_DIR}/docker-compose.yml" up -d --build gateway profile cv-parser postgres localstack
 	fi
 }
 

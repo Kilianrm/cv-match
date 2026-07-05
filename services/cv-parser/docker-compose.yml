@@ -1,0 +1,36 @@
+services:
+  cv-parser-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: cv-parser-service:local
+    environment:
+      SERVICE_NAME: cv-parser-service
+      SERVICE_PORT: 8090
+      LOG_LEVEL: INFO
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_REGION: us-east-1
+      PARSER_QUEUE_URL: http://localstack:4566/000000000000/cv-parser-queue
+      PARSER_DLQ_URL: http://localstack:4566/000000000000/cv-parser-dlq
+      CV_BUCKET_NAME: profile-cv-bucket
+      PROFILE_SERVICE_BASE_URL: http://host.docker.internal:8080
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    ports:
+      - "8090:8090"
+    depends_on:
+      - localstack
+
+  localstack:
+    image: localstack/localstack:3.5
+    environment:
+      - SERVICES=s3,sqs
+      - AWS_DEFAULT_REGION=us-east-1
+    ports:
+      - "4566:4566"
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - ../../scripts/localstack/init:/etc/localstack/init/ready.d
+
+volumes:
+  localstack_data:

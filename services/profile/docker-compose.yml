@@ -36,6 +36,7 @@ services:
       - "4566:4566"
     volumes:
       - localstack_data:/var/lib/localstack
+      - ../../scripts/localstack/init:/etc/localstack/init/ready.d
 
 volumes:
   pgdata:

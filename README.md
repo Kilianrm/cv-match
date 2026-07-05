@@ -53,7 +53,9 @@ Bring up selected local services:
 ```bash
 make local-up STACK=gateway
 make local-up STACK=profile
+make local-up STACK=cv-parser
 make local-up STACK=gateway,profile
+make local-up STACK=gateway,profile,cv-parser
 make local-up STACK=full
 make local-up STACK=full SKIP_FRONTEND=true
 ```
@@ -63,7 +65,9 @@ Tear down selected local services:
 ```bash
 make local-down STACK=gateway
 make local-down STACK=profile
+make local-down STACK=cv-parser
 make local-down STACK=gateway,profile
+make local-down STACK=gateway,profile,cv-parser
 make local-down STACK=full
 ```
 
@@ -71,14 +75,16 @@ Run local tests:
 
 ```bash
 make local-test STACK=gateway SUITE=unit
+make local-test STACK=cv-parser SUITE=unit
 make local-test STACK=gateway,profile SUITE=unit
+make local-test STACK=gateway,profile,cv-parser SUITE=unit
 make local-test STACK=full SUITE=integration
 ```
 
 Notes:
 
 - `STACK` is required for `local-up`, `local-down`, and `local-test`.
-- For service-level stacks (`gateway`, `profile`, or comma-separated), use `SUITE=unit`.
+- For service-level stacks (`gateway`, `profile`, `cv-parser`, or comma-separated), use `SUITE=unit`.
 - For `STACK=full`, use `SUITE=integration`.
 
 ### Dev (AWS) Environment
