@@ -8,7 +8,7 @@ STACK ?=
 SUITE ?= infra
 SKIP_FRONTEND ?= false
 
-.PHONY: help local-up local-down local-test dev-deploy dev-destroy dev-test dev-bootstrap dev-sync-frontend
+.PHONY: help local-up local-down local-test dev-deploy dev-destroy dev-test dev-bootstrap dev-bootstrap-db dev-test-bootstrap-db dev-sync-frontend
 
 help:
 	@echo "CV Match Makefile"
@@ -19,10 +19,12 @@ help:
 	@echo "  make local-test STACK=<gateway|profile|gateway,profile|full> SUITE=<unit|integration>"
 	@echo ""
 	@echo "Dev (AWS) targets:"
-	@echo "  make dev-deploy STACK=<network|security|auth|data|gateway|profile|full>"
-	@echo "  make dev-destroy STACK=<network|security|auth|data|gateway|profile|full>"
+	@echo "  make dev-deploy STACK=<network|security|compute|auth|data|gateway|profile|full>"
+	@echo "  make dev-destroy STACK=<network|security|compute|auth|data|gateway|profile|full>"
+	@echo "  make dev-bootstrap-db"
+	@echo "  make dev-test-bootstrap-db"
 	@echo "  make dev-test [STACK=<...>] [SUITE=<infra|smoke>]"
-	@echo "  make dev-bootstrap"
+	@echo "  make dev-bootstrap (alias of dev-bootstrap-db)"
 	@echo "  make dev-sync-frontend"
 	@echo ""
 	@echo "Examples:"
@@ -63,8 +65,13 @@ dev-test:
 		bash "$(DEV_SCRIPT)" --action test --suite "$(SUITE)"; \
 	fi
 
-dev-bootstrap:
+dev-bootstrap-db:
 	@bash "$(DEV_SCRIPT)" --action bootstrap
+
+
+dev-test-bootstrap-db:
+	@APP_NAME="${APP_NAME}" STAGE="${STAGE}" AWS_REGION="${AWS_REGION}" \
+	bash "$(ROOT_DIR)tests/integration/bootstrap-dev-db.test.sh"
 
 dev-sync-frontend:
 	@bash "$(DEV_SCRIPT)" --action sync-frontend

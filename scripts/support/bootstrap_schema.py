@@ -124,6 +124,64 @@ ADD COLUMN IF NOT EXISTS degree_type_id UUID;
 
 DO $$
 BEGIN
+    IF to_regclass('public.regions') IS NULL THEN
+        RETURN;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'profiles_region_id_fkey'
+    ) THEN
+        ALTER TABLE profiles
+        ADD CONSTRAINT profiles_region_id_fkey
+        FOREIGN KEY (region_id) REFERENCES regions(id);
+    END IF;
+END
+$$;
+
+DO $$
+BEGIN
+    IF to_regclass('public.cities') IS NULL THEN
+        RETURN;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'profiles_city_id_fkey'
+    ) THEN
+        ALTER TABLE profiles
+        ADD CONSTRAINT profiles_city_id_fkey
+        FOREIGN KEY (city_id) REFERENCES cities(id);
+    END IF;
+END
+$$;
+
+DO $$
+BEGIN
+    IF to_regclass('public.skills') IS NULL THEN
+        RETURN;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'profile_skills_skill_id_fkey'
+    ) THEN
+        ALTER TABLE profile_skills
+        ADD CONSTRAINT profile_skills_skill_id_fkey
+        FOREIGN KEY (skill_id) REFERENCES skills(id);
+    END IF;
+END
+$$;
+
+DO $$
+BEGIN
+    IF to_regclass('public.roles') IS NULL THEN
+        RETURN;
+    END IF;
+
     IF NOT EXISTS (
         SELECT 1
         FROM pg_constraint
@@ -138,6 +196,10 @@ $$;
 
 DO $$
 BEGIN
+    IF to_regclass('public.degree_types') IS NULL THEN
+        RETURN;
+    END IF;
+
     IF NOT EXISTS (
         SELECT 1
         FROM pg_constraint

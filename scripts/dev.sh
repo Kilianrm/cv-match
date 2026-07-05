@@ -15,16 +15,17 @@ ACTION=""
 STACK=""
 SUITE="infra"
 SUITE_SPECIFIED="false"
+FORCE_DEPLOY="${FORCE_DEPLOY:-false}"
 
 INFRA_DEPLOY_SCRIPT="${ROOT_DIR}/infra/scripts/deploy-dev.sh"
 INFRA_TEST_SCRIPT="${ROOT_DIR}/infra/scripts/test-infra.sh"
-SMOKE_TEST_SCRIPT="${ROOT_DIR}/tests/integration/bootstrap-dev-db.test.sh"
+SMOKE_TEST_SCRIPT="${ROOT_DIR}/tests/integration/smoke-aws-deployed.test.sh"
 SYNC_FRONTEND_SCRIPT="${ROOT_DIR}/scripts/support/sync-frontend-env-dev.sh"
 BOOTSTRAP_DB_SCRIPT="${ROOT_DIR}/scripts/support/bootstrap-dev-db.sh"
 
 print_help() {
 	cat >&2 <<'EOF'
-Usage: ./scripts/dev.sh --action <action> [--stack <stack>] [--suite <suite>]
+Usage: ./scripts/dev.sh --action <action> [--stack <stack>] [--suite <suite>] [--force-deploy]
 
 Actions:
   deploy    Deploy dev infrastructure (requires --stack)
@@ -36,6 +37,7 @@ Actions:
 Stacks:
   network   Deploy/destroy only network stack
   security  Deploy/destroy only security stack
+	compute   Deploy/destroy only compute stack
   auth      Deploy/destroy only auth stack
   data      Deploy/destroy only data stack
   gateway   Deploy/destroy only gateway stack
@@ -52,6 +54,7 @@ Suites (for 'test' action only):
 	smoke     Run smoke tests against deployed infra (requires --stack)
 
 Options:
+	--force-deploy  Force CDK deploy even when no template diff is detected
   -h, --help
 
 Environment variables:
@@ -83,6 +86,10 @@ while [[ $# -gt 0 ]]; do
 			SUITE="${2:-}"
 			SUITE_SPECIFIED="true"
 			shift 2
+			;;
+		--force-deploy)
+			FORCE_DEPLOY="true"
+			shift
 			;;
 		-h|--help)
 			print_help
@@ -162,6 +169,17 @@ case "${ACTION}" in
 		;;
 esac
 
+if [[ "${FORCE_DEPLOY}" != "true" && "${FORCE_DEPLOY}" != "false" ]]; then
+	echo "error: FORCE_DEPLOY must be true or false" >&2
+	exit 1
+fi
+
+if [[ "${FORCE_DEPLOY}" == "true" && "${ACTION}" != "deploy" ]]; then
+	echo "error: --force-deploy can only be used with --action deploy" >&2
+	print_help
+	exit 1
+fi
+
 if [[ "${ACTION}" != "test" && "${SUITE_SPECIFIED}" == "true" ]]; then
 	echo "error: --suite can only be used with --action test" >&2
 	exit 1
@@ -210,9 +228,9 @@ if [[ -n "${STACK}" ]]; then
 		for raw_stack in "${requested_stacks[@]}"; do
 			trimmed_stack="$(echo "${raw_stack}" | xargs)"
 			case "${trimmed_stack}" in
-				network|security|auth|data|gateway|profile) ;;
+				network|security|compute|auth|data|gateway|profile) ;;
 				*)
-					echo "error: invalid --stack '${STACK}'. Use: network | security | auth | data | gateway | profile | full" >&2
+					echo "error: invalid --stack '${STACK}'. Use: network | security | compute | auth | data | gateway | profile | full" >&2
 					exit 1
 					;;
 			esac
@@ -242,7 +260,7 @@ fi
 STACKS_TO_DEPLOY=""
 if [[ -n "${STACK}" ]]; then
 	if [[ "${STACK}" == "full" ]]; then
-		STACKS_TO_DEPLOY="network,security,data,auth,profile,gateway"
+		STACKS_TO_DEPLOY="network,security,compute,data,auth,profile,gateway"
 	else
 		STACKS_TO_DEPLOY="${STACK}"
 	fi
@@ -256,11 +274,11 @@ case "${ACTION}" in
 		fi
 
 		if [[ -n "${STACKS_TO_DEPLOY}" ]]; then
-			APP_NAME="${APP_NAME}" STAGE="${STAGE}" AWS_REGION="${AWS_REGION}" \
+			APP_NAME="${APP_NAME}" STAGE="${STAGE}" AWS_REGION="${AWS_REGION}" FORCE_DEPLOY="${FORCE_DEPLOY}" \
 			DEPLOY_STACKS="${STACKS_TO_DEPLOY}" \
 			bash "${INFRA_DEPLOY_SCRIPT}"
 		else
-			APP_NAME="${APP_NAME}" STAGE="${STAGE}" AWS_REGION="${AWS_REGION}" \
+			APP_NAME="${APP_NAME}" STAGE="${STAGE}" AWS_REGION="${AWS_REGION}" FORCE_DEPLOY="${FORCE_DEPLOY}" \
 			bash "${INFRA_DEPLOY_SCRIPT}"
 		fi
 		;;
@@ -307,6 +325,7 @@ case "${ACTION}" in
 					echo "error: missing ${SMOKE_TEST_SCRIPT}" >&2
 					exit 1
 				fi
+				APP_NAME="${APP_NAME}" STAGE="${STAGE}" AWS_REGION="${AWS_REGION}" STACK="${STACK}" \
 				bash "${SMOKE_TEST_SCRIPT}"
 				;;
 		esac

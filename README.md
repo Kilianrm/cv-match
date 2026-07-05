@@ -99,6 +99,18 @@ make dev-destroy STACK=network,security,auth
 make dev-destroy STACK=full
 ```
 
+Manual support actions:
+
+```bash
+make dev-bootstrap-db
+make dev-test-bootstrap-db
+make dev-sync-frontend
+```
+
+- `make dev-bootstrap-db`: initializes the deployed dev database with seed/reference data.
+- `make dev-test-bootstrap-db`: validates deployed bootstrap DB data consistency.
+- `make dev-sync-frontend`: links local frontend configuration to the deployed cloud backend (auth + gateway endpoints).
+
 Run infra or smoke tests:
 
 ```bash
@@ -106,20 +118,11 @@ make dev-test SUITE=infra
 make dev-test STACK=full SUITE=smoke
 ```
 
-Manual support actions:
-
-```bash
-make dev-bootstrap
-make dev-sync-frontend
-```
-
-- `make dev-bootstrap`: initializes the deployed dev database with seed/reference data.
-- `make dev-sync-frontend`: links local frontend configuration to the deployed cloud backend (auth + gateway endpoints).
-
 Notes:
 
 - `STACK` is required for `dev-deploy` and `dev-destroy`.
 - `dev-test SUITE=smoke` requires `STACK`.
+- `dev-test SUITE=smoke` runs only `smoke-aws-deployed` checks (bootstrap DB validation is separate).
 - On deploy, if `.env.dev` is missing and `.env.dev.example` exists, `scripts/dev.sh` creates `.env.dev` automatically.
 
 The Makefile delegates to the scripts under `scripts/` and keeps all orchestration and validation logic centralized there.

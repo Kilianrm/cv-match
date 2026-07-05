@@ -94,6 +94,7 @@ Examples:
 ```bash
 ./scripts/dev.sh --action deploy --stack gateway
 ./scripts/dev.sh --action deploy --stack full
+./scripts/dev.sh --action deploy --stack profile --force-deploy
 ./scripts/dev.sh --action destroy --stack profile
 ./scripts/dev.sh --action destroy --stack full
 ./scripts/dev.sh --action test
@@ -107,6 +108,7 @@ Notes:
 - `test --suite smoke` validates against already deployed infra and requires `--stack`
 - `--stack` accepts `network`, `security`, `auth`, `data`, `gateway`, `profile`, or `full`
 - `--suite` accepts `infra` or `smoke` and is valid only with `--action test`
+- `--force-deploy` adds `--force` to the underlying `cdk deploy`, which is useful when managed resources such as CloudWatch log groups were deleted manually
 - `--action deploy` requires `--stack`
 - `--action destroy` requires `--stack`
 
@@ -117,7 +119,7 @@ Compatibility wrapper for `./scripts/dev.sh`.
 Basic usage:
 
 ```bash
-./scripts/deploy-dev.sh [--destroy|--destroy-all]
+./scripts/deploy-dev.sh [--destroy|--destroy-all|--force-deploy]
 ```
 
 ## support/deploy-frontend-auth-dev.sh

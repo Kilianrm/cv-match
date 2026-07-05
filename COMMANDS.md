@@ -114,6 +114,8 @@ Only `APP_NAME`, `STAGE`, and `AWS_REGION` are accepted environment variables by
 ## Infrastructure Tests
 
 ```bash
+./scripts/dev.sh --action bootstrap
+./tests/integration/bootstrap-dev-db.test.sh
 ./scripts/dev.sh --action test
 ./scripts/dev.sh --action test --suite infra
 ./scripts/dev.sh --action test --suite smoke --stack full
